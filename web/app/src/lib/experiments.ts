@@ -289,6 +289,24 @@ export const experiments: Experiment[] = [
     readme: 'artifacts/tool_calls/tool_time_by_kind/README.md',
     figures: [{ src: '/figures/tool_calls/tool_total_time_by_kind.png', caption: 'Total effective tool time by kind and provider.' }],
   },
+  {
+    slug: 'tool_calls/bash_command_breakdown',
+    category: 'tool_calls',
+    title: 'Bash command breakdown',
+    blurb: 'Which executables shell commands run, how often, and how long each takes.',
+    readme: 'artifacts/tool_calls/bash_command_breakdown/README.md',
+    figures: [
+      { src: '/figures/tool_calls/executable_popularity.png', caption: 'Executable popularity — share of all shell-command invocations, tools versus shell plumbing.' },
+      { src: '/figures/tool_calls/executable_popularity_by_provider.png', caption: 'Top executables per agent, each panel ranked by its own share.' },
+      { src: '/figures/tool_calls/executable_runtime.png', caption: 'Per-executable runtime over single-executable calls, by provider.' },
+    ],
+    tables: [
+      {
+        src: 'artifacts/tool_calls/bash_command_breakdown/command_stats.md',
+        caption: 'Command breakdown — call counts, single- versus multi-executable split, and runtime coverage, by provider.',
+      },
+    ],
+  },
 
   // ----- Prefix cache (paper §7: hit rate → idle/eviction → redundant prefill → storage) -----
   {

@@ -299,6 +299,14 @@ export const overviewFigureSections: FigureSection[] = [
         src: '/figures/tool_calls/tool_total_latency_cdf_by_provider.png',
         slug: 'tool_calls/tool_latency_distribution',
       },
+      {
+        category: 'tool_calls',
+        title: 'Bash command breakdown',
+        blurb: 'Which executables shell commands run, and how long each takes.',
+        variant: 'figure',
+        src: '/figures/tool_calls/executable_popularity.png',
+        slug: 'tool_calls/bash_command_breakdown',
+      },
     ],
   },
   {
