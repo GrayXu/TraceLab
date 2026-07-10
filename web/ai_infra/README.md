@@ -31,6 +31,32 @@ Current built template:
 - build id: `7d42fdee-d195-4839-adc9-19527614dc3d`
 - build verification: `select count(*) from rounds` returned `357161`
 
+## Build The Arker Base VM
+
+Arker's E2B-template equivalent is a prepared base VM. Runtime VMs fork from that VM and inherit
+the filesystem copy-on-write, so the public DuckDB and Python dependencies should be baked into the
+base VM once:
+
+```bash
+source ~/.bashrc
+uv run --with arker python web/ai_infra/build_syfi_arker_base.py \
+  --name syfi-qa-base
+```
+
+The builder:
+
+- starts from the public `ArkerHQ/ubuntu` VM
+- installs `duckdb` and `matplotlib`
+- uploads `trace/syfi_coding_trace.duckdb` to `/data/syfi_coding_trace.duckdb`
+- verifies the DB inside the VM
+- defaults to `1` CPU, `2048` MB RAM, and `4096` MB disk, matching the current E2B runtime shape
+
+Record the emitted `arker_base_ready.vm_id` here after a successful build:
+
+- name: `syfi-qa-base`
+- VM id: `vmh-5324b5848a78e22f-01KWWG42NTMJ43M0WW56BGQ2R0`
+- build verification: `select count(*) from rounds` returned `357161`
+
 ## Test The Template
 
 Create a sandbox from the template and run a real query/plot:
