@@ -14,6 +14,8 @@ Writes:
   executables, top-N with the long tail rolled into a small ``other``, tools vs plumbing tagged.
 - ``executable_popularity_by_provider.png`` — claude (left) and codex (right) as separate panels,
   each ranked by its OWN share, so the toolchain contrast reads at a glance.
+- ``executable_popularity_top15_by_provider.png`` — a compact, presentation-ready version of the
+  provider comparison, limited to each agent's 15 most popular executables.
 """
 
 from __future__ import annotations
@@ -165,7 +167,20 @@ def fig_pooled(rows: list[dict], out_dir: Path, top: int, tools_only: bool) -> P
     return out
 
 
-def fig_by_provider(rows: list[dict], out_dir: Path, top: int, tools_only: bool) -> Path:
+def fig_by_provider(
+    rows: list[dict],
+    out_dir: Path,
+    top: int,
+    tools_only: bool,
+    *,
+    filename: str = "executable_popularity_by_provider.png",
+    title: str = "What each agent runs — top executables, each panel ranked by its own share",
+    xlabel: str = "share of this agent's shell executable invocations",
+    xlabel_fontsize: float | None = None,
+    ytick_fontsize: float | None = None,
+    title_y: float = 0.995,
+    layout_top: float = 0.965,
+) -> Path:
     """Fig 2 — claude (left) and codex (right) as separate panels, each ranked by its OWN share."""
     data = [r for r in rows if not (tools_only and r["kind"] == "plumbing")]
 
@@ -185,23 +200,23 @@ def fig_by_provider(rows: list[dict], out_dir: Path, top: int, tools_only: bool)
         y = list(range(len(p["vals"])))
         ax.barh(y, p["vals"], color=p["color"], height=0.76, edgecolor="white", linewidth=0.4)
         ax.set_yticks(y)
-        ax.set_yticklabels(p["labels"])
+        ax.set_yticklabels(p["labels"], fontsize=ytick_fontsize)
         ax.invert_yaxis()
         for yi, v in zip(y, p["vals"]):
             ax.text(v + xmax * 0.012, yi, f"{v:.1f}%", va="center", ha="left",
                     fontsize=7.6, color=TEXT_COLOR)
         ax.set_xlim(0, xmax * 1.16)
         ax.xaxis.set_major_formatter(mticker.PercentFormatter(xmax=100, decimals=0))
-        ax.set_xlabel("share of this agent's shell-command invocations")
+        ax.set_xlabel(xlabel, fontsize=xlabel_fontsize)
         polish_axes(ax, grid_axis="x")
         ax.set_title(provider_title(p["prov"]), loc="left", pad=8, fontsize=13.5,
                      fontweight="semibold", color=p["color"])
 
-    fig.suptitle("What each agent runs — top executables, each panel ranked by its own share",
-                 x=0.5, y=0.995, fontsize=14.5, fontweight="semibold", color=TEXT_COLOR)
-    fig.tight_layout(rect=(0, 0, 1, 0.965))
+    fig.suptitle(title, x=0.5, y=title_y, fontsize=14.5,
+                 fontweight="semibold", color=TEXT_COLOR)
+    fig.tight_layout(rect=(0, 0, 1, layout_top))
 
-    out = out_dir / "executable_popularity_by_provider.png"
+    out = out_dir / filename
     save_plot(fig, out)
     return out
 
@@ -235,12 +250,25 @@ def main(argv=None) -> int:
     rows = to_plot_rows(comb, tot_c, tot_x)
     f1 = fig_pooled(rows, args.output_dir, args.top, args.tools_only)
     f2 = fig_by_provider(rows, args.output_dir, args.top, args.tools_only)
+    f3 = fig_by_provider(
+        rows,
+        args.output_dir,
+        15,
+        args.tools_only,
+        filename="executable_popularity_top15_by_provider.png",
+        title="Most popular shell executables — Top 15 for Claude and Codex",
+        xlabel="Share of executable invocations",
+        xlabel_fontsize=12,
+        ytick_fontsize=11.5,
+        title_y=0.975,
+        layout_top=0.985,
+    )
 
     png_sidecar.make_self_contained(
         args.output_dir,
         code_files=[Path(__file__), *png_sidecar.util_code_files()],
         readme_path=EXP_DIR / "README.md",
-        png_names=[f1.name, f2.name],
+        png_names=[f1.name, f2.name, f3.name],
         data_glob="executable_popularity.csv",
     )
 
@@ -251,7 +279,7 @@ def main(argv=None) -> int:
     for exe, v in top:
         t = v["claude"] + v["codex"]
         print(f"    {t:8,}  {t / tot:5.1%}  {v['kind']:<9} {exe}")
-    print(f"wrote {csv_path.name} + 2 figures -> {args.output_dir}")
+    print(f"wrote {csv_path.name} + 3 figures -> {args.output_dir}")
     return 0
 
 

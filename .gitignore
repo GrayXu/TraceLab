@@ -65,3 +65,6 @@ web/app/public/paper.pdf
 # Local-only runbook: self-hosted vLLM on ptc GPU 1 + AI-backend wiring (names internal hosts/keys).
 .codex/skills/serve-vllm-ptc/
 /blog/
+
+# Local snapshots of the tool-input sampling experiment.
+/artifacts/tool_calls/tool_input_samples.backup-*/

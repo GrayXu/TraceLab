@@ -60,7 +60,7 @@ with `source == "deterministic"` and `n_exe == 1` and a latency value (0-second 
   (`seg_head`/`label_exe`/`PLUMBING`/wrapper + python rules). The parser is lazy, so importing this
   module as a library needs no parser.
 - `analyze_popularity.py` — one tally per `executables[]` entry → `executable_popularity.csv` + the
-  pooled and per-provider figures.
+  pooled, per-provider, and compact top-15 per-provider figures.
 - `analyze_executable_runtime.py` — single-executable latency box plots → `executable_runtime.csv` +
   figure.
 - `analyze_command_stats.py` — coverage/shape statistics plus the shell-command share of all tool
@@ -76,7 +76,7 @@ with `source == "deterministic"` and `n_exe == 1` and a latency value (0-second 
 BASE=artifacts/tool_calls/bash_command_breakdown
 
 uv run --extra bash python $BASE/classify_commands.py   # classify the whole trace (~32s)
-uv run python $BASE/analyze_popularity.py               # popularity CSV + 2 figures
+uv run python $BASE/analyze_popularity.py               # popularity CSV + 3 figures
 uv run python $BASE/analyze_executable_runtime.py       # runtime CSV + figure
 uv run python artifacts/tool_calls/tool_time_by_kind/plot.py  # all-tool count/time denominators
 uv run python $BASE/analyze_command_stats.py            # command_stats.json + command_stats.md
@@ -94,7 +94,7 @@ All gitignored; only the four `.py` scripts and this README are tracked.
 | file | contents |
 |---|---|
 | **`command_calls.jsonl`** | the centralized dataset — every call, executables + latency |
-| `executable_popularity.csv` + 2 PNGs | ranked usage, pooled and per-provider |
+| `executable_popularity.csv` + 3 PNGs | ranked usage, pooled, per-provider, and compact top-15 per-provider |
 | `executable_runtime.csv` + PNG | per-executable latency percentiles + box plots |
 | `command_stats.json` / `command_stats.md` | coverage/shape stats + the website table |
 
