@@ -74,6 +74,12 @@ _TOOL_FIELDS = (
     ("is_error", "BOOLEAN", "tc.is_error"),
     ("input_chars", "BIGINT", "tc.input_chars"),
     ("result_chars", "BIGINT", "tc.result_chars"),
+    ("process_session_id", "VARCHAR", "tc.process_session_id"),
+    ("process_state", "VARCHAR", "tc.process_state"),
+    ("process_exit_code", "BIGINT", "tc.process_exit_code"),
+    ("root_tool_call_id", "VARCHAR", "tc.root_tool_call_id"),
+    ("process_finished_at", "TIMESTAMP", _ts("tc.process_finished_at")),
+    ("process_total_wall_latency_ms", "BIGINT", "tc.process_total_wall_latency_ms"),
 )
 _TIMING_FIELDS = (
     ("event_type", "VARCHAR", "te.event_type"),
@@ -345,19 +351,36 @@ def _install_compat_views(con: "duckdb.DuckDBPyConnection") -> None:
     the insertion order of the materialized child rows, so a temp view can reconstruct the same
     1-based per-round index without modifying the read-only release asset.
     """
-    if _has_column(con, "timing_events", "event_index"):
-        return
-
     db = _ident(_primary_database_name(con))
-    con.execute(
-        f"""
-        CREATE TEMP VIEW timing_events AS
-        SELECT
-          row_number() OVER (PARTITION BY round_pk ORDER BY rowid) AS event_index,
-          *
-        FROM {db}.timing_events
-        """
+    if not _has_column(con, "timing_events", "event_index"):
+        con.execute(
+            f"""
+            CREATE TEMP VIEW timing_events AS
+            SELECT
+              row_number() OVER (PARTITION BY round_pk ORDER BY rowid) AS event_index,
+              *
+            FROM {db}.timing_events
+            """
+        )
+
+    # Process-continuation linkage was added after the first public DuckDB release. Keep old assets
+    # queryable by exposing the current nullable columns through a shadowing temporary view.
+    process_fields = (
+        ("process_session_id", "VARCHAR"),
+        ("process_state", "VARCHAR"),
+        ("process_exit_code", "BIGINT"),
+        ("root_tool_call_id", "VARCHAR"),
+        ("process_finished_at", "TIMESTAMP"),
+        ("process_total_wall_latency_ms", "BIGINT"),
     )
+    missing = [
+        (name, kind)
+        for name, kind in process_fields
+        if not _has_column(con, "tool_calls", name)
+    ]
+    if missing:
+        nulls = ", ".join(f"CAST(NULL AS {kind}) AS {_ident(name)}" for name, kind in missing)
+        con.execute(f"CREATE TEMP VIEW tool_calls AS SELECT *, {nulls} FROM {db}.tool_calls")
 
 
 def connect(db_path, *, read_only: bool = True) -> "duckdb.DuckDBPyConnection":

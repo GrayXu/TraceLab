@@ -220,11 +220,11 @@ scripts/collect_all_users_sudo.sh --sanitize
 <details>
 <summary><b>What sanitization does</b></summary>
 
-`sanitize_round_trace.py` rewrites session, round, turn, tool-call, project, and user
-identifiers with stable pseudorandom replacements. It removes local context fields such as
-`home`, `cwd`, `workdir`, `session_file`, and path-like keys, and drops `tools[].input`
-entirely while preserving `input_chars`. Distinct-user counts remain available through
-pseudonymous `user` values.
+`sanitize_round_trace.py` rewrites session, round, turn, tool-call, process-session, project, and
+user identifiers with stable pseudorandom replacements. Continuation-to-root relationships remain
+joinable through the pseudonymous ids. It removes local context fields such as `home`, `cwd`,
+`workdir`, `session_file`, and path-like keys, and drops `tools[].input` entirely while preserving
+`input_chars`. Distinct-user counts remain available through pseudonymous `user` values.
 </details>
 
 <details>
@@ -354,7 +354,10 @@ timing list, and nested tool metadata.
   `tools[].input` and keep only `input_chars`.
 - `tools[]` includes `tool_name`, `tool_call_id`, `emitted_at`, `input_chars`,
   `result_chars`, `tool_wall_latency_ms`, `tool_internal_latency_ms`, `is_error`, and
-  `result_at`. Full tool outputs are not stored — content is summarized by `result_chars`.
+  `result_at`. Codex process continuations additionally carry `process_session_id`,
+  `process_state`, `process_exit_code`, `root_tool_call_id`, `process_finished_at`, and
+  `process_total_wall_latency_ms`. Full tool outputs are not stored — content is summarized by
+  `result_chars`.
 </details>
 
 <details>

@@ -81,9 +81,20 @@ re-add as a single JSON column only if an experiment truly needs it).
 | `is_error` | BOOLEAN | |
 | `input_chars` | BIGINT | |
 | `result_chars` | BIGINT | |
+| `process_session_id` | VARCHAR | runner id for continued Codex commands; pseudonymized when sanitized |
+| `process_state` | VARCHAR | `running` \| `exited` \| `continuation_error` (nullable) |
+| `process_exit_code` | BIGINT | observed process exit code (nullable) |
+| `root_tool_call_id` | VARCHAR | originating `exec_command`; self for root calls (nullable) |
+| `process_finished_at` | TIMESTAMP | observed terminal-result time, back-filled on the root call |
+| `process_total_wall_latency_ms` | BIGINT | root emission → observed terminal result (nullable) |
 
 **Effective tool latency** = `internal` if present else `wall` (legacy `latency_ms` is not in the
 normalized data). Use the shared fragment `trace_db.EFFECTIVE_TOOL_LATENCY_MS_SQL`.
+
+For a Codex `exec_command` that yields a running process, `tool_*_latency_ms` still describes only
+that individual tool interaction. `process_total_wall_latency_ms` on the root call spans from the
+initial `exec_command.emitted_at` through the terminal continuation result. A root left `running`
+has no observed terminal result and therefore keeps the process-total fields null.
 
 ### `timing_events` — one row per timing event (FK `round_pk`)
 

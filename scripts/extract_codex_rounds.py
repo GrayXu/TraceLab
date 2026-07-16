@@ -23,6 +23,14 @@ from extract_claude_rounds import (
 
 EXIT_CODE_RE = re.compile(r"(?:Exit code|Process exited with code)[: ]+(-?\d+)")
 WALL_TIME_RE = re.compile(r"^Wall time:\s*([0-9]+(?:\.[0-9]+)?)\s*seconds\b", re.MULTILINE)
+PROCESS_RUNNING_RE = re.compile(r"Process running with session ID\s+([A-Za-z0-9_-]+)")
+CONTINUATION_FAILURE_RE = re.compile(
+    r"(?:write_stdin failed|no running session|stdin is closed for this session|"
+    r"session(?: ID)? [A-Za-z0-9_-]+ (?:was )?not found)",
+    re.IGNORECASE,
+)
+PROCESS_ROOT_TOOLS = frozenset(("exec_command",))
+PROCESS_CONTINUATION_TOOLS = frozenset(("write_stdin",))
 
 
 def usage_int(usage: dict[str, Any], key: str) -> int:
@@ -47,27 +55,87 @@ def wall_time_ms_from_output(output: Any) -> int | None:
     return round(float(match.group(1)) * 1000)
 
 
-def infer_error_from_output(output: Any) -> bool | None:
+def output_metadata(output: Any) -> dict[str, Any] | None:
     if not isinstance(output, str):
         return None
-    match = EXIT_CODE_RE.search(output)
-    if match:
-        return int(match.group(1)) != 0
     try:
         parsed = json.loads(output)
     except json.JSONDecodeError:
         return None
-    if not isinstance(parsed, dict):
+    if not isinstance(parsed, dict) or not isinstance(parsed.get("metadata"), dict):
         return None
-    metadata = parsed.get("metadata")
-    if isinstance(metadata, dict):
-        exit_code = metadata.get("exit_code")
-        if isinstance(exit_code, int):
-            return exit_code != 0
+    return parsed["metadata"]
+
+
+def exit_code_from_output(output: Any) -> int | None:
+    if not isinstance(output, str):
+        return None
+    match = EXIT_CODE_RE.search(output)
+    if match:
+        return int(match.group(1))
+    metadata = output_metadata(output)
+    if metadata is not None and isinstance(metadata.get("exit_code"), int):
+        return metadata["exit_code"]
+    return None
+
+
+def infer_error_from_output(output: Any) -> bool | None:
+    exit_code = exit_code_from_output(output)
+    if exit_code is not None:
+        return exit_code != 0
+    metadata = output_metadata(output)
+    if metadata is not None:
         success = metadata.get("success")
         if isinstance(success, bool):
             return not success
     return None
+
+
+def tool_input_dict(input_value: Any) -> dict[str, Any] | None:
+    if isinstance(input_value, dict):
+        return input_value
+    if not isinstance(input_value, str):
+        return None
+    try:
+        parsed = json.loads(input_value)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def process_session_from_input(input_value: Any) -> str | None:
+    parsed = tool_input_dict(input_value)
+    if parsed is None or parsed.get("session_id") is None:
+        return None
+    return str(parsed["session_id"])
+
+
+def process_observation(
+    output: Any,
+    tool_name: str | None,
+    *,
+    explicit_exit_code: int | None = None,
+) -> tuple[str | None, str | None, int | None]:
+    """Return ``(state, process_session_id, exit_code)`` from one runner response."""
+    if not isinstance(output, str):
+        output = ""
+    running = PROCESS_RUNNING_RE.search(output)
+    if running:
+        return "running", running.group(1), None
+
+    exit_code = explicit_exit_code
+    if exit_code is None:
+        exit_code = exit_code_from_output(output)
+    if exit_code is not None:
+        return "exited", None, exit_code
+
+    metadata = output_metadata(output)
+    if metadata is not None and isinstance(metadata.get("success"), bool):
+        return "exited", None, None
+
+    if tool_name in PROCESS_CONTINUATION_TOOLS and CONTINUATION_FAILURE_RE.search(output):
+        return "continuation_error", None, None
+    return None, None, None
 
 
 def add_tool(
@@ -78,6 +146,7 @@ def add_tool(
     tool_name: str | None,
     emitted_at: str | None,
     input_value: Any,
+    process_roots: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     existing = tool_by_id.get(call_id)
     if existing is not None:
@@ -94,7 +163,19 @@ def add_tool(
         "tool_wall_latency_ms": None,
         "tool_internal_latency_ms": None,
         "is_error": None,
+        "process_session_id": None,
+        "process_state": None,
+        "process_exit_code": None,
+        "root_tool_call_id": call_id if tool_name in PROCESS_ROOT_TOOLS else None,
+        "process_finished_at": None,
+        "process_total_wall_latency_ms": None,
     }
+    if tool_name in PROCESS_CONTINUATION_TOOLS:
+        process_session_id = process_session_from_input(input_value)
+        tool["process_session_id"] = process_session_id
+        root = process_roots.get(process_session_id) if process_session_id is not None else None
+        if root is not None:
+            tool["root_tool_call_id"] = root.get("tool_call_id")
     tools.append(tool)
     tool_by_id[call_id] = tool
     return tool
@@ -105,6 +186,9 @@ def apply_tool_output(
     timestamp: str | None,
     output: Any,
     is_error: bool | None,
+    process_roots: dict[str, dict[str, Any]],
+    *,
+    explicit_exit_code: int | None = None,
 ) -> bool:
     first_result = tool.get("result_at") is None
     if first_result:
@@ -117,6 +201,45 @@ def apply_tool_output(
         tool["tool_internal_latency_ms"] = wall_time_ms_from_output(output)
     if is_error is not None:
         tool["is_error"] = is_error
+
+    state, observed_session_id, exit_code = process_observation(
+        output,
+        tool.get("tool_name"),
+        explicit_exit_code=explicit_exit_code,
+    )
+    if observed_session_id is not None:
+        tool["process_session_id"] = observed_session_id
+    process_session_id = tool.get("process_session_id")
+
+    if tool.get("tool_name") in PROCESS_ROOT_TOOLS and process_session_id is not None:
+        process_roots[process_session_id] = tool
+    root = (
+        process_roots.get(process_session_id)
+        if isinstance(process_session_id, str)
+        else None
+    )
+    if root is None and tool.get("tool_name") in PROCESS_ROOT_TOOLS:
+        root = tool
+    if root is not None and tool.get("root_tool_call_id") is None:
+        tool["root_tool_call_id"] = root.get("tool_call_id")
+
+    if state is not None:
+        tool["process_state"] = state
+    if exit_code is not None:
+        tool["process_exit_code"] = exit_code
+    if state == "exited":
+        tool["process_finished_at"] = timestamp
+        if root is not None:
+            root["process_state"] = "exited"
+            root["process_exit_code"] = exit_code
+            if exit_code is not None:
+                root["is_error"] = exit_code != 0
+            elif is_error is not None:
+                root["is_error"] = is_error
+            root["process_finished_at"] = timestamp
+            root["process_total_wall_latency_ms"] = timestamp_delta_ms(
+                root.get("emitted_at"), timestamp
+            )
     return first_result
 
 
@@ -184,6 +307,9 @@ def extract_codex_session(
     segment_timing_events: list[dict[str, Any]] = []
     segment_tools: list[dict[str, Any]] = []
     tool_by_id: dict[str, dict[str, Any]] = {}
+    # Runner process-session id -> originating exec_command tool. Tool dicts remain shared with
+    # already-built round objects, so a terminal write_stdin can back-fill its root call later.
+    process_roots: dict[str, dict[str, Any]] = {}
     # Opt-in raw capture state (parallel to the round-building state above; never merged into it).
     # raw_tool_by_id is NOT reset per round (mirrors tool_by_id) so a tool whose output lands in a
     # later segment still back-fills the same dict referenced by the already-emitted raw entry.
@@ -305,6 +431,7 @@ def extract_codex_session(
                         tool_name=payload.get("name"),
                         emitted_at=timestamp,
                         input_value=payload.get("arguments"),
+                        process_roots=process_roots,
                     )
                     if len(segment_tools) > tool_count:
                         append_timing_event(
@@ -337,6 +464,7 @@ def extract_codex_session(
                         tool_name=payload.get("name"),
                         emitted_at=timestamp,
                         input_value=payload.get("input"),
+                        process_roots=process_roots,
                     )
                     if len(segment_tools) > tool_count:
                         append_timing_event(
@@ -364,7 +492,7 @@ def extract_codex_session(
                 if tool is not None:
                     output = payload.get("output")
                     is_error = infer_error_from_output(output)
-                    if apply_tool_output(tool, timestamp, output, is_error):
+                    if apply_tool_output(tool, timestamp, output, is_error, process_roots):
                         append_timing_event(
                             pending_input_events,
                             "tool_result",
@@ -385,7 +513,7 @@ def extract_codex_session(
                 if tool is not None:
                     output = payload.get("output")
                     is_error = infer_error_from_output(output)
-                    if apply_tool_output(tool, timestamp, output, is_error):
+                    if apply_tool_output(tool, timestamp, output, is_error, process_roots):
                         append_timing_event(
                             pending_input_events,
                             "tool_result",
@@ -412,6 +540,8 @@ def extract_codex_session(
                         timestamp,
                         output,
                         is_error,
+                        process_roots,
+                        explicit_exit_code=exit_code if isinstance(exit_code, int) else None,
                     ):
                         append_timing_event(
                             pending_input_events,
@@ -439,6 +569,7 @@ def extract_codex_session(
                         timestamp,
                         output,
                         is_error,
+                        process_roots,
                     ):
                         append_timing_event(
                             pending_input_events,
