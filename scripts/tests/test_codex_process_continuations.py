@@ -4,6 +4,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
@@ -16,6 +18,7 @@ from extract_codex_rounds import (  # noqa: E402
 )
 from command_chains import command_chains  # noqa: E402
 from sanitize_round_trace import StableIdSanitizer, sanitize_row  # noqa: E402
+from executable_facts import extract_executable_facts  # noqa: E402
 from trace_db import connect, materialize  # noqa: E402
 
 
@@ -303,6 +306,110 @@ def test_sanitizer_preserves_links_with_pseudonymous_ids(tmp_path: Path) -> None
     assert "_process_session_id" not in root
     assert "_process_session_id" not in poll
     assert "_process_session_id" not in finish
+
+
+def test_sanitizer_adds_privacy_safe_executable_facts() -> None:
+    row = {
+        "provider": "codex",
+        "tools": [
+            {
+                "tool_name": "exec_command",
+                "tool_call_id": "call_command",
+                "input": {"cmd": "git status && vibe-serve | python script.py"},
+            },
+            {
+                "tool_name": "write_stdin",
+                "tool_call_id": "call_wait",
+                "input": {"session_id": 123, "chars": ""},
+            },
+        ],
+    }
+    sanitized = sanitize_row(row, StableIdSanitizer("test-seed"))
+    command, continuation = sanitized["tools"]
+
+    assert command["executables"] == ["git", "custom_1", "python-script"]
+    assert command["executable_parse_status"] == "success"
+    assert command["executable_parse_reason"] is None
+    assert command["command_skeleton"] == "git && custom_1 | python-script"
+    assert "input" not in command
+    assert "executables" not in continuation
+    assert "command_skeleton" not in continuation
+    assert "input" not in continuation
+
+
+def test_executable_facts_keep_structure_and_report_failures() -> None:
+    structured = extract_executable_facts(
+        {"cmd": "make || echo nope; for item in a; do ls; done"}
+    )
+    malformed = extract_executable_facts({"cmd": "echo '"})
+
+    assert structured == {
+        "executables": ["make", "echo", "ls"],
+        "executable_parse_status": "success",
+        "executable_parse_reason": None,
+        "command_skeleton": "make || echo ; <loops>",
+    }
+    assert malformed == {
+        "executables": [],
+        "executable_parse_status": "failed",
+        "executable_parse_reason": "parse-error",
+        "command_skeleton": "",
+    }
+
+
+def test_sanitizer_reports_parser_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+    import sanitize_round_trace as sanitizer
+
+    def unavailable(_raw):
+        raise RuntimeError("parser unavailable")
+
+    monkeypatch.setattr(sanitizer, "extract_executable_facts", unavailable)
+    row = {
+        "provider": "codex",
+        "tools": [
+            {
+                "tool_name": "exec_command",
+                "tool_call_id": "call_command",
+                "input": {"cmd": "git status"},
+            }
+        ],
+    }
+    tool = sanitize_row(row, StableIdSanitizer("test-seed"))["tools"][0]
+
+    assert tool["executables"] == []
+    assert tool["executable_parse_status"] == "failed"
+    assert tool["executable_parse_reason"] == "parser-unavailable"
+    assert tool["command_skeleton"] == ""
+    assert "input" not in tool
+
+
+def test_duckdb_materializes_sanitized_executable_facts(tmp_path: Path) -> None:
+    row = {
+        "provider": "claude",
+        "tools": [
+            {
+                "tool_name": "Bash",
+                "tool_call_id": "toolu_1234567890abcdef",
+                "input": {"command": "harbor run || git status"},
+            }
+        ],
+    }
+    sanitized = sanitize_row(row, StableIdSanitizer("test-seed"))
+    trace = tmp_path / "sanitized.jsonl"
+    trace.write_text(json.dumps(sanitized) + "\n")
+    db = tmp_path / "sanitized.duckdb"
+    materialize(trace, db)
+
+    con = connect(db, read_only=True)
+    try:
+        facts = con.execute(
+            "SELECT executables, executable_parse_status, executable_parse_reason, "
+            "command_skeleton FROM tool_calls"
+        ).fetchone()
+    finally:
+        con.close()
+
+    assert facts == (["custom_1", "git"], "success", None, "custom_1 || git")
 
 
 def test_duckdb_keeps_minimal_command_facts_and_derives_lifecycle(tmp_path: Path) -> None:

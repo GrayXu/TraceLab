@@ -27,9 +27,9 @@ Method and assumptions:
   initial `exec_command` emission through the first linked result marked `finished`; incomplete,
   aborted, and failed chains are excluded. Claude retains its effective per-call latency.
 
-Everything downstream reads one centralized dataset, `command_calls.jsonl`; nothing re-scans the
-trace or re-classifies. The raw command text survives only in the private normalized JSONL, so
-classification defaults to the all-users merged trace and fails loudly on a sanitized input.
+Executable extraction now runs in the public-trace sanitizer. The sanitized JSONL and its DuckDB
+both store the same privacy-safe executable list, parse status/reason, and command skeleton.
+Everything here reads those stored facts; this artifact never needs raw command text.
 
 ## The dataset — command_calls.jsonl
 
@@ -41,17 +41,16 @@ One JSON row per shell/command call — the single source of truth for any execu
 | `user`, `project` | who ran it / which repo |
 | `trace_key`, `session_id`, `round_index`, `tool_index`, `tool_call_id` | call identity |
 | `tool_name` | `Bash` \| `exec_command` \| `shell` \| `shell_command` |
-| `command` | the full raw command text |
 | `command_skeleton` | privacy-oriented executable/operator form with reserved `<...>` structure tokens; `""` only if unparseable/empty |
 | `latency_ms` | per-call latency (`tool_internal_latency_ms` else `tool_wall_latency_ms`); `null` if none |
 | `executables` | list, one entry per occurrence (`["git","git"]`); `[]` if opaque |
 | `kinds` | aligned with `executables`: `"tool"` \| `"plumbing"` |
 | `n_exe` | `len(executables)` |
-| `source` | `deterministic` (all named) \| `partial` (some named) \| `unresolved` (none named) |
-| `reason` | why a call is unresolved/partial (`dynamic`/`parse-error`/…), else `null` |
+| `executable_parse_status` | `success` \| `partial` \| `failed` |
+| `executable_parse_reason` | why a call is partial/failed (`dynamic`/`parse-error`/…), else `null` |
 
 Three standard reads: **popularity** counts `executables[]` across all rows; **runtime** keeps rows
-with `source == "deterministic"` and `n_exe == 1` and a latency value (0-second calls floored to
+with `executable_parse_status == "success"` and `n_exe == 1` and a latency value (0-second calls floored to
 1 ms); **updated runtime** applies the same attribution filter but replaces Codex `exec_command`
 latency with the observable full-command duration reconstructed from the normalized continuation
 links.
@@ -70,11 +69,11 @@ comment-only or otherwise structureless inputs. Placeholder/operator categories 
 
 ## Code structure
 
-- `classify_commands.py` (needs `uv run --extra bash`) — scans the whole trace once and streams
-  `command_calls.jsonl`. tree-sitter-bash gives the *structure* (splitting, heredoc/`$()` isolation,
-  pipeline/loop/subshell nesting); a semantic label layer gives the *executable meaning*
-  (`seg_head`/`label_exe`/`PLUMBING`/wrapper + python rules). The parser is lazy, so importing this
-  module as a library needs no parser.
+- `scripts/executable_facts.py` — shared tree-sitter Bash extraction and skeleton logic used by the
+  sanitizer.
+- `scripts/sanitize_round_trace.py` — extracts the facts, preserves explicitly whitelisted
+  public/common names, and maps every other executable consistently to `custom_N`.
+- `classify_commands.py` — a small DuckDB exporter/statistics step over the stored public fields.
 - `analyze_popularity.py` — one tally per `executables[]` entry → `executable_popularity.csv` + the
   pooled, per-provider, and compact top-15 per-provider figures.
 - `analyze_executable_runtime.py` — single-executable latency box plots plus each provider's top 15
@@ -88,20 +87,20 @@ comment-only or otherwise structureless inputs. Placeholder/operator categories 
   continuation/wait calls. All-tool denominators come from the adjacent exact `tool_time_by_kind`
   CSV, and the script cross-checks that its shell-launch slice matches `command_calls.jsonl` before
   writing.
-- `sanitize_executables.py` + `public_common_executables.txt` — a conservative privacy-review pass.
+- `sanitize_executables.py` + `scripts/public_common_executables.txt` — a conservative privacy-review pass.
   Exact whitelisted names remain visible; every other executable is proposed as `custom_N`. Normal
-  runs depend only on the frozen whitelist, never the host environment. This does not yet modify the
-  normalized/public trace.
+  runs depend only on the frozen whitelist, never the host environment. The sanitizer imports these
+  frozen decisions.
 
 ## Running it
 
 ```bash
 BASE=artifacts/tool_calls/bash_command_breakdown
-TRACE=trace/llm_round_trace_v2.merged.all_users.jsonl
-DB=trace/llm_round_trace_v2.merged.all_users.duckdb
+TRACE=trace/llm_round_trace_v2.merged.all_users.public.jsonl
+DB=trace/llm_round_trace_v2.merged.all_users.public.duckdb
 
 uv run python artifacts/utils/trace_db.py $TRACE $DB
-uv run --extra bash python $BASE/classify_commands.py -i $TRACE
+uv run python $BASE/classify_commands.py --db $DB
 uv run python $BASE/analyze_popularity.py               # popularity CSV + 3 figures
 uv run python $BASE/analyze_executable_runtime.py       # runtime CSV + figure
 uv run python $BASE/analyze_executable_runtime_updated.py --db $DB
@@ -110,7 +109,7 @@ uv run python $BASE/analyze_command_stats.py            # command_stats.json + c
 uv run python $BASE/sanitize_executables.py             # private review CSV + mapping
 ```
 
-Flags — `classify_commands.py`: `-i/--input`, `-o/--output-dir`, `--tools`, `--progress-every`.
+Flags — `classify_commands.py`: `--db` or `-i/--input`, `-o/--output-dir`, `--tools`.
 `analyze_popularity.py`: `--top` (45), `--tools-only`. `analyze_executable_runtime.py`:
 `--min-calls` (30), `--top` (30), `--tools-only`. The updated runtime script has the same plotting
 flags plus required `--db`. `analyze_command_stats.py`:
@@ -135,16 +134,15 @@ whitelist are tracked.
 
 ## Executable privacy review
 
-`public_common_executables.txt` is an exact-match allowlist. Its initial bootstrap included only
+`scripts/public_common_executables.txt` is an exact-match allowlist. Its initial bootstrap included only
 observed Bash builtins, commands found in standard system binary directories, and a small curated set
 of well-known development tools. It is now frozen and human-reviewed additions are explicit. A false
 negative is intentionally safe—it becomes `custom_N`; no spelling or path heuristic can silently
 publish a new project-specific name.
 
-The private `command_skeleton` currently contains unsanitized normalized executable names. When it
-is added to the public trace, each executable token must pass through the same frozen whitelist and
-corpus-level `custom_N` mapping. Operators and every reserved `<...>` structural token are retained
-as-is. An empty skeleton remains empty.
+During sanitization, every executable token in `command_skeleton` passes through the same frozen
+whitelist and trace-level `custom_N` mapping as `executables[]`. Operators and reserved `<...>`
+structural tokens are retained as-is. An empty skeleton remains empty.
 
 The current proposal retains 351 of 1,044 unique names and covers 99.04% of all executable
 occurrences. The remaining 693 names receive stable-within-this-mapping labels in inventory order:
@@ -155,7 +153,7 @@ contains sensitive original names and must never be shipped with a public trace.
 
 To rebuild the one-time whitelist from a new inventory, first move/remove the existing whitelist and
 run `sanitize_executables.py --bootstrap-whitelist`. Do not use bootstrap during public sanitization;
-the later pipeline should import the frozen decisions and persist a corpus-level custom mapping.
+the sanitizer reads only the frozen reviewed file and assigns its own first-seen trace-level mapping.
 
 ## Notes / limits
 
@@ -167,8 +165,7 @@ the later pipeline should import the frozen decisions and persist a corpus-level
   Codex single-exe calls are fast enough to read `0 seconds` → 0 ms and are floored to 1 ms rather than
   dropped — so a spike at 1 ms in a Codex box is that 0-second cohort. Claude's come from millisecond
   timestamps and are fine-grained.
-- Not registered in `run_all.py`: this depends on the private normalized trace, so it can't
-  regenerate in the automatic DuckDB figure pipeline.
+- The parsing step is part of sanitization; artifact regeneration needs only the public DuckDB.
 
 ## SyFI result analysis
 

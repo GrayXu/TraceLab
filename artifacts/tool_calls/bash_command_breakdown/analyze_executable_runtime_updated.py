@@ -114,7 +114,7 @@ def main(argv=None) -> int:
             rec = json.loads(line)
             provider = rec.get("provider")
             total_calls[provider] += 1
-            if rec.get("n_exe") != 1 or rec.get("source") != "deterministic":
+            if rec.get("n_exe") != 1 or rec.get("executable_parse_status") != "success":
                 continue
             single_calls[provider] += 1
 

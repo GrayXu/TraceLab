@@ -2,11 +2,11 @@
 """Analyze executable popularity — what percentage of shell commands is which executable.
 
 Reads only the centralized dataset ``command_calls.jsonl`` (from ``classify_commands.py``): one row
-per shell call already carries its final ``executables`` + ``kinds`` + ``source``, so this is a
+per shell call already carries its final ``executables`` + ``kinds`` + parse status, so this is a
 cheap CSV + plot pass — no trace, no DuckDB, no re-classification.
 
-Counts one tally per executable *occurrence* across every call (deterministic and partial rows
-contribute; ``unresolved`` rows carry no executable and add nothing).
+Counts one tally per executable *occurrence* across every call (successful and partial rows
+contribute; failed rows carry no executable and add nothing).
 
 Writes:
 - ``executable_popularity.csv`` — full ranking (all executables), the machine-readable result.

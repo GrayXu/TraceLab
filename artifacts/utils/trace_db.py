@@ -77,6 +77,10 @@ _TOOL_FIELDS = (
     ("continuation_of_tool_call_id", "VARCHAR", "tc.continuation_of_tool_call_id"),
     ("command_status", "VARCHAR", "tc.command_status"),
     ("command_exit_code", "BIGINT", "tc.command_exit_code"),
+    ("executables", "VARCHAR[]", "CAST(tc.executables AS VARCHAR[])"),
+    ("executable_parse_status", "VARCHAR", "CAST(tc.executable_parse_status AS VARCHAR)"),
+    ("executable_parse_reason", "VARCHAR", "CAST(tc.executable_parse_reason AS VARCHAR)"),
+    ("command_skeleton", "VARCHAR", "CAST(tc.command_skeleton AS VARCHAR)"),
 )
 _TIMING_FIELDS = (
     ("event_type", "VARCHAR", "te.event_type"),
@@ -369,6 +373,10 @@ def _install_compat_views(con: "duckdb.DuckDBPyConnection") -> None:
             "continuation_of_tool_call_id",
             "command_status",
             "command_exit_code",
+            "executables",
+            "executable_parse_status",
+            "executable_parse_reason",
+            "command_skeleton",
         )
         if not _has_column(con, "tool_calls", name)
     ]
@@ -407,6 +415,10 @@ def _install_compat_views(con: "duckdb.DuckDBPyConnection") -> None:
                 if has_old_exit and has_old_session
                 else ("process_exit_code" if has_old_exit else "CAST(NULL AS BIGINT)")
             ),
+            "executables": "CAST(NULL AS VARCHAR[])",
+            "executable_parse_status": "CAST(NULL AS VARCHAR)",
+            "executable_parse_reason": "CAST(NULL AS VARCHAR)",
+            "command_skeleton": "CAST(NULL AS VARCHAR)",
         }
         additions = ", ".join(
             f"{derived[name]} AS {_ident(name)}" for name in missing

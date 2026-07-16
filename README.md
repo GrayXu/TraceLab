@@ -224,7 +224,10 @@ scripts/collect_all_users_sudo.sh --sanitize
 user identifiers with stable pseudorandom replacements. Continuation-to-root relationships remain
 joinable through the pseudonymous ids. It removes local context fields such as `home`, `cwd`,
 `workdir`, `session_file`, and path-like keys, and drops `tools[].input` entirely while preserving
-`input_chars`. Distinct-user counts remain available through pseudonymous `user` values.
+`input_chars`. Before dropping command inputs, it extracts an ordered executable list, parse
+status/reason, and structural command skeleton. Explicitly reviewed public/common names remain
+visible; all other executable names become stable `custom_N` labels within the sanitized trace.
+Distinct-user counts remain available through pseudonymous `user` values.
 </details>
 
 <details>
@@ -356,7 +359,9 @@ timing list, and nested tool metadata.
   `result_chars`, `tool_wall_latency_ms`, `tool_internal_latency_ms`, `is_error`, and
   `result_at`. Codex `exec_command` / `write_stdin` results may additionally carry
   `command_status` and `command_exit_code`; `write_stdin` carries
-  `continuation_of_tool_call_id` when it can be linked to the initial `exec_command`. Full tool
+  `continuation_of_tool_call_id` when it can be linked to the initial `exec_command`. Sanitized
+  command-launch calls also carry `executables`, `executable_parse_status`,
+  `executable_parse_reason`, and `command_skeleton`. Full tool
   outputs are not stored — content is summarized by `result_chars`.
 </details>
 

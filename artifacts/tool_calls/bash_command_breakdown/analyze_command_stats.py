@@ -2,10 +2,10 @@
 """Coverage & shape statistics for the command dataset -> ``command_stats.json``.
 
 A standalone summary of ``command_calls.jsonl``: how many calls, how many executable occurrences,
-the **n_exe distribution** (single- vs multi-executable), the ``source`` breakdown, and — the point
+the **n_exe distribution** (single- vs multi-executable), the parse-status breakdown, and — the point
 of the file — how much of the data can actually feed the single-executable runtime analysis
-(``n_exe == 1`` **and** ``source == "deterministic"`` **and** a latency value; 0-second calls are
-floored to 1 ms in the figure, not dropped). Only single-exe calls can attribute one latency to one
+(``n_exe == 1`` and successful parsing and a latency value; 0-second calls are floored to 1 ms in
+the figure, not dropped). Only single-exe calls can attribute one latency to one
 executable; pipelines/chains can't, so this quantifies the coverage the runtime box plots draw from.
 
 Reported overall and per provider. Reads ``command_calls.jsonl`` plus the exact all-tool totals from
@@ -29,7 +29,7 @@ DEFAULT_INPUT = EXP_DIR / "command_calls.jsonl"
 DEFAULT_OUTPUT = EXP_DIR / "command_stats.json"
 DEFAULT_ALL_TOOL_STATS = EXP_DIR.parent / "tool_time_by_kind" / "tool_total_time_by_kind.csv"
 PROVIDERS = ("claude", "codex")
-SOURCES = ("deterministic", "partial", "unresolved")
+PARSE_STATUSES = ("success", "partial", "failed")
 SHELL_TOOL_NAMES = frozenset(("Bash", "exec_command", "shell", "shell_command"))
 SHELL_TIME_TOOL_NAMES = SHELL_TOOL_NAMES | {"write_stdin"}
 
@@ -51,7 +51,7 @@ def fold(acc: dict, rec: dict) -> None:
         acc["n1"] += 1
     else:
         acc["n2plus"] += 1
-    acc["src"][rec.get("source")] += 1
+    acc["src"][rec.get("executable_parse_status")] += 1
     latency_ms = rec.get("latency_ms")
     if latency_ms is not None and latency_ms > 0:
         acc["positive_latency_calls"] += 1
@@ -61,7 +61,7 @@ def fold(acc: dict, rec: dict) -> None:
     # runtime funnel: a single-executable, cleanly-parsed call with a latency value. 0-second
     # (sub-second, Codex whole-second rounding) calls DO count — the runtime figure floors them to
     # 1 ms rather than dropping them; only a genuinely absent latency is excluded.
-    if n == 1 and rec.get("source") == "deterministic":
+    if n == 1 and rec.get("executable_parse_status") == "success":
         acc["single_det"] += 1
         if rec.get("latency_ms") is not None:
             acc["single_timed"] += 1
@@ -80,7 +80,9 @@ def summarize(acc: dict) -> dict:
         "mean_exe_per_call": round(acc["occ"] / calls, 3) if calls else 0.0,
         "positive_latency_calls": acc["positive_latency_calls"],
         "total_effective_latency_ms": acc["total_latency_ms"],
-        "by_source": {k: acc["src"][k] for k in SOURCES if acc["src"][k]},
+        "by_parse_status": {
+            key: acc["src"][key] for key in PARSE_STATUSES if acc["src"][key]
+        },
         "n_exe": {
             "single_1": acc["n1"],
             "multi_2plus": acc["n2plus"],
@@ -93,7 +95,7 @@ def summarize(acc: dict) -> dict:
             "share_of_calls": share(acc["single_timed"]),
             "single_exe_deterministic": acc["single_det"],
             "single_exe_no_latency": acc["single_det"] - acc["single_timed"],
-            "definition": "n_exe==1 & source==deterministic & latency_ms!=null "
+            "definition": "n_exe==1 & executable_parse_status==success & latency_ms!=null "
                           "(0s calls floored to 1ms in the runtime figure, not dropped)",
         },
     }

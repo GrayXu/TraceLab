@@ -9,6 +9,7 @@ import random
 import re
 import secrets
 import sys
+from collections import Counter
 from pathlib import Path
 from typing import Any, TextIO
 
@@ -17,6 +18,7 @@ from typing import Any, TextIO
 # explicitly so the import also works when imported as a module.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from trace_privacy import SENSITIVE_KEYS, USER_KEYS, is_sensitive_key  # noqa: E402,F401
+from executable_facts import COMMAND_TOOL_NAMES, extract_executable_facts  # noqa: E402
 
 
 DEFAULT_SEED = "coding-trace-sanitize-round-trace-v1"
@@ -27,6 +29,30 @@ UUID_RE = re.compile(
 )
 PREFIX_HEX_RE = re.compile(r"^(msg_|toolu_)([0-9a-fA-F]+)$")
 PREFIX_BASE62_RE = re.compile(r"^(call_)([A-Za-z0-9]+)$")
+PUBLIC_EXECUTABLE_RE = re.compile(r"^custom_[1-9][0-9]*$")
+EXECUTABLE_WHITELIST = Path(__file__).resolve().with_name("public_common_executables.txt")
+
+
+def load_executable_whitelist(path: Path = EXECUTABLE_WHITELIST) -> frozenset[str]:
+    """Load the frozen exact-match list of executable labels safe for public release."""
+    names = {
+        line.strip()
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+    if not names:
+        raise ValueError(f"executable whitelist is empty: {path}")
+    return frozenset(names)
+
+
+PUBLIC_EXECUTABLES = load_executable_whitelist()
+SKELETON_RESERVED = frozenset(
+    {
+        "|", "&&", "||", ";", "&", "!",
+        "<loops>", "<substitution>", "<assign>", "<conditional>",
+        "<subshell>", "<unknown>", "<function>",
+    }
+)
 
 
 class StableIdSanitizer:
@@ -112,6 +138,45 @@ class StableIdSanitizer:
     def user(self, original: Any) -> Any:
         return self.map_value("user", original, lambda: f"user_{self.rand_hex(8)}")
 
+    def executable(self, original: str) -> str:
+        """Keep frozen public/common names; pseudonymize every other exact label."""
+        if original in PUBLIC_EXECUTABLES or PUBLIC_EXECUTABLE_RE.fullmatch(original):
+            return original
+        mapping = self.maps.setdefault("executable", {})
+        if original not in mapping:
+            mapping[original] = f"custom_{len(mapping) + 1}"
+        return mapping[original]
+
+
+def sanitize_executable_facts(facts: dict[str, Any], ids: StableIdSanitizer) -> dict[str, Any]:
+    """Sanitize executable labels consistently in the list and structural skeleton."""
+    labels = facts.get("executables")
+    safe_labels = (
+        [ids.executable(label) for label in labels if isinstance(label, str)]
+        if isinstance(labels, list)
+        else []
+    )
+
+    skeleton = facts.get("command_skeleton")
+    if isinstance(skeleton, str):
+        safe_skeleton = " ".join(
+            token if token in SKELETON_RESERVED else ids.executable(token)
+            for token in skeleton.split()
+        )
+    else:
+        safe_skeleton = ""
+
+    status = facts.get("executable_parse_status")
+    if status not in {"success", "partial", "failed"}:
+        status = "failed"
+    reason = facts.get("executable_parse_reason")
+    return {
+        "executables": safe_labels,
+        "executable_parse_status": status,
+        "executable_parse_reason": reason if isinstance(reason, str) else None,
+        "command_skeleton": safe_skeleton,
+    }
+
 
 def sanitize_value(value: Any, ids: StableIdSanitizer) -> Any:
     if isinstance(value, dict):
@@ -176,6 +241,41 @@ def sanitize_row(row: dict[str, Any], ids: StableIdSanitizer) -> dict[str, Any]:
                     original_tool.get("continuation_of_tool_call_id"),
                     fallback_prefix="call_",
                 )
+            if isinstance(original_tool, dict) and tool.get("tool_name") in COMMAND_TOOL_NAMES:
+                raw_input = original_tool.get("input")
+                if raw_input is not None:
+                    try:
+                        facts = extract_executable_facts(raw_input)
+                    except RuntimeError:
+                        # Some constrained runtimes (notably the in-browser Pyodide ingest) cannot
+                        # load tree-sitter-bash. Keep the public schema complete and report the
+                        # limitation honestly; native collection installs the parser dependency.
+                        facts = {
+                            "executables": [],
+                            "executable_parse_status": "failed",
+                            "executable_parse_reason": "parser-unavailable",
+                            "command_skeleton": "",
+                        }
+                else:
+                    facts = {
+                        key: original_tool.get(key)
+                        for key in (
+                            "executables",
+                            "executable_parse_status",
+                            "executable_parse_reason",
+                            "command_skeleton",
+                        )
+                    }
+                    if facts["executable_parse_status"] is None:
+                        facts.update(
+                            {
+                                "executables": [],
+                                "executable_parse_status": "failed",
+                                "executable_parse_reason": "missing-input",
+                                "command_skeleton": "",
+                            }
+                        )
+                tool.update(sanitize_executable_facts(facts, ids))
             tool.pop("input", None)
             if isinstance(original_tool, dict) and "_assistant_uuid" in original_tool:
                 tool["_assistant_uuid"] = ids.atomic_id(
@@ -251,6 +351,7 @@ def main() -> int:
     ids = StableIdSanitizer(seed)
     rows = 0
     tools = 0
+    executable_statuses: Counter[str] = Counter()
 
     out, should_close = open_output(args.output)
     try:
@@ -269,6 +370,11 @@ def main() -> int:
                 row_tools = sanitized.get("tools")
                 if isinstance(row_tools, list):
                     tools += len(row_tools)
+                    executable_statuses.update(
+                        str(tool["executable_parse_status"])
+                        for tool in row_tools
+                        if isinstance(tool, dict) and "executable_parse_status" in tool
+                    )
                 out.write(
                     json.dumps(sanitized, ensure_ascii=False, separators=(",", ":")) + "\n"
                 )
@@ -279,6 +385,7 @@ def main() -> int:
     print(
         "sanitized "
         f"rows={rows} tools={tools} output={args.output} "
+        f"executable_parse_status={dict(executable_statuses)} "
         f"seed={'<random>' if args.random_seed else seed}",
         file=sys.stderr,
     )

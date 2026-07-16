@@ -207,10 +207,12 @@ function assemblePython() {
     'extract_claude_rounds.py',
     'extract_codex_rounds.py',
     'sanitize_round_trace.py',
+    'executable_facts.py',
     'trace_privacy.py',
   ]) {
     add(join(SCRIPTS, name), `normalize/${name}`);
   }
+  add(join(SCRIPTS, 'public_common_executables.txt'), 'normalize/public_common_executables.txt');
 
   // Shared util library — every .py under artifacts/utils (png_sidecar globs them all).
   const utilsDir = join(ARTIFACTS, 'utils');

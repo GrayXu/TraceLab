@@ -3,14 +3,14 @@
 
 Where ``analyze_popularity.py`` answers *what* each agent runs, this answers *how long each
 executable takes*. Reads only the centralized dataset ``command_calls.jsonl`` (from
-``classify_commands.py``): every row already carries its executables, source, and latency, so this
+``classify_commands.py``): every row already carries its executables, parse status, and latency, so this
 is a fast read — no trace, no DuckDB, no re-classification.
 
 To attribute one latency to one executable we keep only **single-executable calls** and drop
 pipelines/chains (their wall time can't be split across stages). A single-executable call is a
-row with ``n_exe == 1`` and ``source == "deterministic"`` — the parser read exactly one executable
+row with ``n_exe == 1`` and ``executable_parse_status == "success"`` — the parser read one executable
 (a plain ``pytest`` / ``grep x f`` / ``docker build …`` / a ``python - <<PY`` heredoc script). The
-``partial`` and ``unresolved`` rows are excluded: partial ran other things too, unresolved names none.
+``partial`` and ``failed`` rows are excluded: partial ran other things too, failed names none.
 
 Latency floor: Codex reports wall time in whole seconds (parsed from a ``Wall time: N seconds`` line),
 so a sub-second command reads ``0 seconds`` → 0 ms. Rather than drop those fast calls (which would
@@ -96,7 +96,7 @@ def main(argv=None) -> int:
             rec = json.loads(line)
             prov = rec.get("provider")
             total_calls[prov] += 1
-            if rec.get("n_exe") != 1 or rec.get("source") != "deterministic":
+            if rec.get("n_exe") != 1 or rec.get("executable_parse_status") != "success":
                 continue  # multi-executable, opaque, or partial — can't attribute one runtime
             single_calls[prov] += 1
             ms = rec.get("latency_ms")

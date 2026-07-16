@@ -1166,16 +1166,14 @@ dependencies = [
     { name = "e2b-code-interpreter" },
     { name = "matplotlib" },
     { name = "numpy" },
+    { name = "tree-sitter" },
+    { name = "tree-sitter-bash" },
 ]
 
 [package.optional-dependencies]
 ai = [
     { name = "fastapi" },
     { name = "uvicorn", extra = ["standard"] },
-]
-bash = [
-    { name = "tree-sitter" },
-    { name = "tree-sitter-bash" },
 ]
 dev = [
     { name = "pytest" },
@@ -1204,13 +1202,13 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.26" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "python-multipart", marker = "extra == 'server'", specifier = ">=0.0.9" },
-    { name = "tree-sitter", marker = "extra == 'bash'", specifier = ">=0.21" },
-    { name = "tree-sitter-bash", marker = "extra == 'bash'", specifier = ">=0.23" },
+    { name = "tree-sitter", specifier = ">=0.21" },
+    { name = "tree-sitter-bash", specifier = ">=0.23" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'ai'", specifier = ">=0.30" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'local-sidecar'", specifier = ">=0.30" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'server'", specifier = ">=0.30" },
 ]
-provides-extras = ["ai", "server", "local-sidecar", "bash", "dev"]
+provides-extras = ["ai", "server", "local-sidecar", "dev"]
 
 [[package]]
 name = "tree-sitter"

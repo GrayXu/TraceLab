@@ -22,8 +22,9 @@ import sys
 from pathlib import Path
 
 EXP_DIR = Path(__file__).resolve().parent
+REPO_ROOT = EXP_DIR.parents[2]
 DEFAULT_INPUT = EXP_DIR / "executable_popularity.csv"
-DEFAULT_WHITELIST = EXP_DIR / "public_common_executables.txt"
+DEFAULT_WHITELIST = REPO_ROOT / "scripts" / "public_common_executables.txt"
 DEFAULT_REVIEW = EXP_DIR / "executable_privacy_review.csv"
 DEFAULT_MAPPING = EXP_DIR / "executable_sanitization_mapping.json"
 STANDARD_BINARY_DIRS = (Path("/bin"), Path("/usr/bin"), Path("/sbin"), Path("/usr/sbin"))
@@ -139,7 +140,7 @@ def write_review(
 ) -> tuple[int, int, int, int]:
     # Inventory rank is deterministic for a fixed trace and makes the most important private names
     # custom_1, custom_2, ... in the review. The persisted mapping—not this ordering rule—will be
-    # the stability source when this is later integrated into the sanitizer.
+    # This review mapping is rank-oriented; public sanitization uses first-seen trace-level labels.
     custom_names = [row["executable"] for row in rows if row["executable"] not in whitelist]
     mapping = {name: f"custom_{index}" for index, name in enumerate(custom_names, 1)}
 
