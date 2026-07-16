@@ -75,6 +75,10 @@ links.
   continuation/wait calls. All-tool denominators come from the adjacent exact `tool_time_by_kind`
   CSV, and the script cross-checks that its shell-launch slice matches `command_calls.jsonl` before
   writing.
+- `sanitize_executables.py` + `public_common_executables.txt` — a conservative privacy-review pass.
+  Exact whitelisted names remain visible; every other executable is proposed as `custom_N`. Normal
+  runs depend only on the frozen whitelist, never the host environment. This does not yet modify the
+  normalized/public trace.
 
 ## Running it
 
@@ -90,6 +94,7 @@ uv run python $BASE/analyze_executable_runtime.py       # runtime CSV + figure
 uv run python $BASE/analyze_executable_runtime_updated.py --db $DB
 uv run python artifacts/tool_calls/tool_time_by_kind/plot.py --db $DB
 uv run python $BASE/analyze_command_stats.py            # command_stats.json + command_stats.md
+uv run python $BASE/sanitize_executables.py             # private review CSV + mapping
 ```
 
 Flags — `classify_commands.py`: `-i/--input`, `-o/--output-dir`, `--tools`, `--progress-every`.
@@ -100,7 +105,8 @@ flags plus required `--db`. `analyze_command_stats.py`:
 
 ## Outputs
 
-All generated outputs are gitignored; only the five `.py` scripts and this README are tracked.
+Generated outputs are gitignored. The six `.py` scripts, this README, and the reviewed executable
+whitelist are tracked.
 
 | file | contents |
 |---|---|
@@ -111,6 +117,27 @@ All generated outputs are gitignored; only the five `.py` scripts and this READM
 | `executable_runtime_updated.csv` + PNG | per-executable observable full-command duration percentiles + box plots |
 | `executable_total_latency_updated_top15.csv` + PNG | each provider's top 15 executables by summed completed-command time |
 | `command_stats.json` / `command_stats.md` | coverage/shape stats + the website table |
+| `executable_privacy_review.csv` | **private:** all original names, proposed class, and public label |
+| `executable_sanitization_mapping.json` | **private:** domain-specific name → `custom_N` mapping |
+
+## Executable privacy review
+
+`public_common_executables.txt` is an exact-match allowlist. Its initial bootstrap included only
+observed Bash builtins, commands found in standard system binary directories, and a small curated set
+of well-known development tools. It is now frozen and human-reviewed additions are explicit. A false
+negative is intentionally safe—it becomes `custom_N`; no spelling or path heuristic can silently
+publish a new project-specific name.
+
+The current proposal retains 351 of 1,044 unique names and covers 99.04% of all executable
+occurrences. The remaining 693 names receive stable-within-this-mapping labels in inventory order:
+`modal` → `custom_1`, `collaborative_vibe_coder` → `custom_2`, `harbor` → `custom_18`, and
+`vibe-serve` → `custom_25`. `modal` remains private in this conservative pass even though it is a
+public product; adding it to the whitelist is a deliberate review decision. The mapping file itself
+contains sensitive original names and must never be shipped with a public trace.
+
+To rebuild the one-time whitelist from a new inventory, first move/remove the existing whitelist and
+run `sanitize_executables.py --bootstrap-whitelist`. Do not use bootstrap during public sanitization;
+the later pipeline should import the frozen decisions and persist a corpus-level custom mapping.
 
 ## Notes / limits
 
