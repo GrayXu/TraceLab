@@ -40,7 +40,7 @@ def _token_count(timestamp: str, sequence: int) -> dict:
 
 
 def _continued_session_records(final_output: str) -> list[dict]:
-    return [
+    records = [
         _record(
             "2026-01-01T00:00:00.000Z",
             "session_meta",
@@ -122,6 +122,22 @@ def _continued_session_records(final_output: str) -> list[dict]:
             },
         ),
     ]
+    if "Process exited with code" in final_output:
+        # Codex may emit this duplicate runner event after the function result. It must not replace
+        # the terminal write_stdin timestamp chosen above.
+        records.append(
+            _record(
+                "2026-01-01T00:00:08.100Z",
+                "event_msg",
+                {
+                    "type": "exec_command_end",
+                    "call_id": "call_root",
+                    "exit_code": 0,
+                    "aggregated_output": "done\n",
+                },
+            )
+        )
+    return records
 
 
 def _extract(tmp_path: Path, records: list[dict]) -> list[dict]:
@@ -142,6 +158,21 @@ def test_immediate_exec_records_its_own_terminal_span(tmp_path: Path) -> None:
                 "output": (
                     "Chunk ID: abc\nWall time: 1.0000 seconds\n"
                     "Process exited with code 3\nOutput:\nfailed\n"
+                ),
+            },
+        )
+    )
+    # A replayed running result after the exit must not regress the root back to running.
+    records.append(
+        _record(
+            "2026-01-01T00:00:01.100Z",
+            "response_item",
+            {
+                "type": "function_call_output",
+                "call_id": "call_root",
+                "output": (
+                    "Chunk ID: stale\nWall time: 1.0000 seconds\n"
+                    "Process running with session ID 74219\nOutput:\n"
                 ),
             },
         )

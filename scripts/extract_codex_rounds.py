@@ -207,7 +207,7 @@ def apply_tool_output(
         tool.get("tool_name"),
         explicit_exit_code=explicit_exit_code,
     )
-    if observed_session_id is not None:
+    if observed_session_id is not None and tool.get("process_state") != "exited":
         tool["process_session_id"] = observed_session_id
     process_session_id = tool.get("process_session_id")
 
@@ -223,13 +223,20 @@ def apply_tool_output(
     if root is not None and tool.get("root_tool_call_id") is None:
         tool["root_tool_call_id"] = root.get("tool_call_id")
 
-    if state is not None:
+    # Runner logs can report the same call through both function_call_output and a later
+    # exec_command_end event. Terminal state is monotonic: a delayed/replayed "running" response
+    # must never regress an already-observed exit.
+    if state is not None and tool.get("process_state") != "exited":
         tool["process_state"] = state
-    if exit_code is not None:
+    if exit_code is not None and tool.get("process_exit_code") is None:
         tool["process_exit_code"] = exit_code
     if state == "exited":
-        tool["process_finished_at"] = timestamp
-        if root is not None:
+        first_root_terminal = root is not None and root.get("process_finished_at") is None
+        if tool.get("process_finished_at") is None:
+            tool["process_finished_at"] = timestamp
+        # The first terminal observation defines the process finish. In particular, a terminal
+        # write_stdin result wins over a duplicate exec_command_end event emitted milliseconds later.
+        if first_root_terminal:
             root["process_state"] = "exited"
             root["process_exit_code"] = exit_code
             if exit_code is not None:
