@@ -63,8 +63,12 @@ with `source == "deterministic"` and `n_exe == 1` and a latency value (0-second 
   pooled and per-provider figures.
 - `analyze_executable_runtime.py` — single-executable latency box plots → `executable_runtime.csv` +
   figure.
-- `analyze_command_stats.py` — coverage/shape statistics → `command_stats.json` + `command_stats.md`
-  (the website table).
+- `analyze_command_stats.py` — coverage/shape statistics plus the shell-command share of all tool
+  calls and summed effective tool time → `command_stats.json` + `command_stats.md` (the website
+  tables). Counts cover command launches; summed time additionally includes Codex `write_stdin`
+  continuation/wait calls. All-tool denominators come from the adjacent exact `tool_time_by_kind`
+  CSV, and the script cross-checks that its shell-launch slice matches `command_calls.jsonl` before
+  writing.
 
 ## Running it
 
@@ -74,12 +78,14 @@ BASE=artifacts/tool_calls/bash_command_breakdown
 uv run --extra bash python $BASE/classify_commands.py   # classify the whole trace (~32s)
 uv run python $BASE/analyze_popularity.py               # popularity CSV + 2 figures
 uv run python $BASE/analyze_executable_runtime.py       # runtime CSV + figure
+uv run python artifacts/tool_calls/tool_time_by_kind/plot.py  # all-tool count/time denominators
 uv run python $BASE/analyze_command_stats.py            # command_stats.json + command_stats.md
 ```
 
 Flags — `classify_commands.py`: `-i/--input`, `-o/--output-dir`, `--tools`, `--progress-every`.
 `analyze_popularity.py`: `--top` (45), `--tools-only`. `analyze_executable_runtime.py`:
-`--min-calls` (30), `--top` (30), `--tools-only`.
+`--min-calls` (30), `--top` (30), `--tools-only`. `analyze_command_stats.py`:
+`--all-tool-stats` (the matching `tool_total_time_by_kind.csv`).
 
 ## Outputs
 
