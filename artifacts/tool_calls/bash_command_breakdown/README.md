@@ -64,11 +64,11 @@ links.
   module as a library needs no parser.
 - `analyze_popularity.py` — one tally per `executables[]` entry → `executable_popularity.csv` + the
   pooled, per-provider, and compact top-15 per-provider figures.
-- `analyze_executable_runtime.py` — single-executable latency box plots → `executable_runtime.csv` +
-  figure.
+- `analyze_executable_runtime.py` — single-executable latency box plots plus each provider's top 15
+  executables by summed raw latency → runtime and total-latency CSVs + figures.
 - `analyze_executable_runtime_updated.py` — the same attribution and visual design, with continued
-  Codex commands timed through their terminal `write_stdin` result →
-  `executable_runtime_updated.csv` + figure. It needs a DuckDB built from the same trace.
+  Codex commands timed through their terminal `write_stdin` result → updated runtime and top-15
+  summed completion-time CSVs + figures. It needs a DuckDB built from the same trace.
 - `analyze_command_stats.py` — coverage/shape statistics plus the shell-command share of all tool
   calls and summed effective tool time → `command_stats.json` + `command_stats.md` (the website
   tables). Counts cover command launches; summed time additionally includes Codex `write_stdin`
@@ -106,8 +106,10 @@ All generated outputs are gitignored; only the five `.py` scripts and this READM
 |---|---|
 | **`command_calls.jsonl`** | the centralized dataset — every call, executables + latency |
 | `executable_popularity.csv` + 3 PNGs | ranked usage, pooled, per-provider, and compact top-15 per-provider |
-| `executable_runtime.csv` + PNG | per-executable latency percentiles + box plots |
+| `executable_runtime.csv` + PNG | per-executable raw-latency percentiles + box plots |
+| `executable_total_latency_top15.csv` + PNG | each provider's top 15 executables by summed raw latency |
 | `executable_runtime_updated.csv` + PNG | per-executable observable full-command duration percentiles + box plots |
+| `executable_total_latency_updated_top15.csv` + PNG | each provider's top 15 executables by summed completed-command time |
 | `command_stats.json` / `command_stats.md` | coverage/shape stats + the website table |
 
 ## Notes / limits
@@ -171,3 +173,19 @@ moves from a 1 ms median / 493 ms p90 to 146 ms / 769 ms; `git` from 51 ms / 764
 effective call latency already covers its `Bash` call. The updated Codex panel retains 163,519
 single-executable calls and excludes 3,147 without an observed successful finish, so unfinished,
 aborted, failed, and session-error chains do not masquerade as completed command durations.
+
+### executable_total_latency_top15.png
+
+Summing the raw per-call latency over attributable single-executable calls concentrates most time in
+a small set: the top 15 account for 90.8% of Claude's 95.4 hours and 88.1% of Codex's 52.6 hours.
+Claude's largest buckets are `python` (26.9 h), `python-script` (22.6 h), and `docker` (13.4 h);
+Codex's are `python-script` (14.4 h), `python` (13.9 h), and `docker` (4.7 h). This is the additive
+raw tool-latency view and retains Codex's coarse/partial first-call timing.
+
+### executable_total_latency_updated_top15.png
+
+Using observable completed-command duration leaves Claude unchanged but raises Codex's attributable
+total from 52.6 to 431.3 hours. `python-script` (139.0 h), `docker` (75.2 h), and `modal` (50.9 h)
+form the largest Codex buckets; its top 15 account for 85.7% of the updated total. This metric spans
+the initial `exec_command` emission through the first linked `finished` result, so for continued
+commands it includes the elapsed intervals between polling calls as well as time inside the calls.

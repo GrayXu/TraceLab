@@ -31,7 +31,11 @@ import png_sidecar  # noqa: E402
 import trace_db  # noqa: E402
 from command_chains import command_chains  # noqa: E402
 from style import provider_order  # noqa: E402
-from analyze_executable_runtime import plot_runtime, write_summary_csv  # noqa: E402
+from analyze_executable_runtime import (  # noqa: E402
+    plot_runtime,
+    plot_total_latency_top15,
+    write_summary_csv,
+)
 
 DEFAULT_COMMANDS = EXP_DIR / "command_calls.jsonl"
 
@@ -165,6 +169,15 @@ def main(argv=None) -> int:
         ),
         output_name="executable_runtime_updated.png",
     )
+    total_csv, total_png = plot_total_latency_top15(
+        lat,
+        kind,
+        args.output_dir,
+        args.tools_only,
+        stem="executable_total_latency_updated_top15",
+        figure_title="Summed completed-command time — Top 15 shell executables",
+        x_label="Summed completion time (hours)",
+    )
 
     png_sidecar.make_self_contained(
         args.output_dir,
@@ -176,6 +189,17 @@ def main(argv=None) -> int:
         readme_path=EXP_DIR / "README.md",
         png_names=[png.name],
         data_glob=csv_path.name,
+    )
+    png_sidecar.make_self_contained(
+        args.output_dir,
+        code_files=[
+            Path(__file__),
+            EXP_DIR / "analyze_executable_runtime.py",
+            *png_sidecar.util_code_files(),
+        ],
+        readme_path=EXP_DIR / "README.md",
+        png_names=[total_png.name],
+        data_glob=total_csv.name,
     )
 
     print(f"Codex command-chain final statuses: {dict(chain_statuses)}", file=sys.stderr)

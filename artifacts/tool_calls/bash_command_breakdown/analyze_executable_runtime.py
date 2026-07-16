@@ -46,6 +46,7 @@ from style import (  # noqa: E402
     polish_axes,
     provider_order,
     provider_title,
+    plot_color,
     save_plot,
     short_label,
 )
@@ -123,6 +124,15 @@ def main(argv=None) -> int:
     csv_path = args.output_dir / "executable_runtime.csv"
     write_summary_csv(lat, kind, csv_path)
     png = plot_runtime(lat, kind, coverage, args.output_dir, args.min_calls, args.top, args.tools_only)
+    total_csv, total_png = plot_total_latency_top15(
+        lat,
+        kind,
+        args.output_dir,
+        args.tools_only,
+        stem="executable_total_latency_top15",
+        figure_title="Summed raw latency — Top 15 shell executables",
+        x_label="Summed raw latency (hours)",
+    )
 
     png_sidecar.make_self_contained(
         args.output_dir,
@@ -130,6 +140,13 @@ def main(argv=None) -> int:
         readme_path=EXP_DIR / "README.md",
         png_names=[png.name],
         data_glob="executable_runtime.csv",
+    )
+    png_sidecar.make_self_contained(
+        args.output_dir,
+        code_files=[Path(__file__), *png_sidecar.util_code_files()],
+        readme_path=EXP_DIR / "README.md",
+        png_names=[total_png.name],
+        data_glob=total_csv.name,
     )
 
     for prov in provider_order(lat):
@@ -155,6 +172,105 @@ def write_summary_csv(lat, kind, out: Path) -> None:
                     f"{arr.min():.0f}", f"{arr.max():.0f}",
                 ])
     print(f"Saved {out}", file=sys.stderr)
+
+
+def plot_total_latency_top15(
+    lat,
+    kind,
+    out_dir: Path,
+    tools_only: bool,
+    *,
+    stem: str,
+    figure_title: str,
+    x_label: str,
+    top: int = 15,
+) -> tuple[Path, Path]:
+    """Write and plot each provider's top executables by summed attributable latency."""
+    panels = []
+    rows = []
+    for prov in provider_order(lat):
+        eligible = [
+            (exe, vals, float(sum(vals)))
+            for exe, vals in lat[prov].items()
+            if not (tools_only and kind.get(exe) == "plumbing")
+        ]
+        eligible.sort(key=lambda item: (-item[2], item[0]))
+        provider_total_ms = sum(item[2] for item in eligible)
+        shown = eligible[:top]
+        panels.append((prov, shown, len(eligible), provider_total_ms))
+        for rank, (exe, vals, total_ms) in enumerate(shown, 1):
+            rows.append(
+                {
+                    "provider": prov,
+                    "rank": rank,
+                    "executable": exe,
+                    "kind": kind.get(exe, "tool"),
+                    "calls": len(vals),
+                    "total_latency_ms": total_ms,
+                    "total_latency_hours": total_ms / 3_600_000,
+                    "share_of_attributable_latency": (
+                        total_ms / provider_total_ms if provider_total_ms else 0.0
+                    ),
+                }
+            )
+
+    csv_path = out_dir / f"{stem}.csv"
+    with csv_path.open("w", newline="", encoding="utf-8") as fh:
+        fieldnames = [
+            "provider",
+            "rank",
+            "executable",
+            "kind",
+            "calls",
+            "total_latency_ms",
+            "total_latency_hours",
+            "share_of_attributable_latency",
+        ]
+        writer = csv.DictWriter(fh, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+    print(f"Saved {csv_path}", file=sys.stderr)
+
+    fig, axes = plt.subplots(1, len(panels), figsize=(13.6, 7.0), squeeze=False)
+    for panel_index, (ax, (prov, shown, distinct, provider_total_ms)) in enumerate(
+        zip(axes.ravel(), panels, strict=True)
+    ):
+        labels = [f"{short_label(exe, 20)}  (n={len(vals):,})" for exe, vals, _ in shown]
+        hours = [total_ms / 3_600_000 for _exe, _vals, total_ms in shown]
+        y = list(range(len(shown)))
+        color = plot_color(prov, panel_index)
+        bars = ax.barh(y, hours, color=color, alpha=0.82, height=0.76)
+        ax.set_yticks(y)
+        ax.set_yticklabels(labels, fontsize=11.5)
+        ax.invert_yaxis()
+        xmax = max(hours, default=1.0)
+        ax.set_xlim(0, xmax * 1.21)
+        for bar, value in zip(bars, hours, strict=True):
+            ax.text(
+                value + xmax * 0.015,
+                bar.get_y() + bar.get_height() / 2,
+                f"{value:,.1f}h",
+                va="center",
+                fontsize=9.2,
+                color=TEXT_COLOR,
+            )
+        ax.set_title(
+            f"{provider_title(prov)} — top {len(shown)} of {distinct:,} · "
+            f"{provider_total_ms / 3_600_000:,.1f}h total",
+            loc="left",
+            pad=8,
+            fontsize=14,
+            color=color,
+        )
+        ax.set_xlabel(x_label, fontsize=13, labelpad=8)
+        ax.tick_params(axis="x", labelsize=11)
+        polish_axes(ax, grid_axis="x")
+
+    fig.suptitle(figure_title, y=0.992, fontsize=16, fontweight="semibold")
+    fig.tight_layout(rect=(0, 0, 1, 0.982), w_pad=2.3)
+    png_path = out_dir / f"{stem}.png"
+    save_plot(fig, png_path)
+    return csv_path, png_path
 
 
 def plot_runtime(
