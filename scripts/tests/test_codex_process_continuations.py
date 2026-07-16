@@ -9,7 +9,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 sys.path.insert(0, str(REPO_ROOT / "artifacts" / "utils"))
 
-from extract_codex_rounds import extract_codex_session  # noqa: E402
+from extract_codex_rounds import (  # noqa: E402
+    command_observation,
+    extract_codex_session,
+    infer_error_from_output,
+)
 from command_chains import command_chains  # noqa: E402
 from sanitize_round_trace import StableIdSanitizer, sanitize_row  # noqa: E402
 from trace_db import connect, materialize  # noqa: E402
@@ -147,6 +151,22 @@ def _extract(tmp_path: Path, records: list[dict]) -> list[dict]:
     return extract_codex_session(session)
 
 
+def test_special_command_result_formats_are_classified() -> None:
+    aborted = "aborted by user after 7.2s"
+    failed = "exec_command failed: CreateProcess { message: \"rejected\" }"
+    wrapped_success = (
+        "Wall time: 0.0000 seconds\nOutput:\n"
+        '{"output":"Success","metadata":{"exit_code":0,"duration_seconds":0.0}}'
+    )
+
+    assert command_observation(aborted, "exec_command") == ("aborted", None, None)
+    assert infer_error_from_output(aborted) is True
+    assert command_observation(failed, "exec_command") == ("failed", None, None)
+    assert infer_error_from_output(failed) is True
+    assert command_observation(wrapped_success, "exec_command") == ("finished", None, 0)
+    assert infer_error_from_output(wrapped_success) is False
+
+
 def test_immediate_exec_records_finished_status(tmp_path: Path) -> None:
     records = _continued_session_records("")[:4]
     records.append(
@@ -254,6 +274,7 @@ def test_continuation_error_does_not_guess_a_finish(tmp_path: Path) -> None:
 
     assert root["command_status"] == "running"
     assert failed_write["command_status"] == "session_error"
+    assert failed_write["is_error"] is True
     assert failed_write["continuation_of_tool_call_id"] == "call_root"
 
 
@@ -361,3 +382,38 @@ def test_command_chain_utility_handles_immediate_exec(tmp_path: Path) -> None:
     assert row["finishing_tool_call_id"] == "call_root"
     assert row["wall_time_until_finished_ms"] == 1_000
     assert row["tool_call_time_sum_ms"] == 1_000
+
+
+def test_command_chain_utility_keeps_aborted_status_incomplete(tmp_path: Path) -> None:
+    records = _continued_session_records("")[:4]
+    records.append(
+        _record(
+            "2026-01-01T00:00:01.000Z",
+            "response_item",
+            {
+                "type": "function_call_output",
+                "call_id": "call_root",
+                "output": "aborted by user after 1.0s",
+            },
+        )
+    )
+    rounds = _extract(tmp_path, records)
+    assert rounds[0]["tools"][0]["command_status"] == "aborted"
+    assert rounds[0]["tools"][0]["is_error"] is True
+
+    trace = tmp_path / "aborted.jsonl"
+    trace.write_text("".join(json.dumps(row) + "\n" for row in rounds))
+    db = tmp_path / "aborted.duckdb"
+    materialize(trace, db)
+    con = connect(db, read_only=True)
+    try:
+        derived = command_chains(con).fetchone()
+        columns = [item[0] for item in con.description]
+    finally:
+        con.close()
+
+    row = dict(zip(columns, derived, strict=True))
+    assert row["initial_status"] == "aborted"
+    assert row["final_status"] == "aborted"
+    assert row["observed_finished_at"] is None
+    assert row["wall_time_until_finished_ms"] is None

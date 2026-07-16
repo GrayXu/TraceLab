@@ -82,7 +82,7 @@ re-add as a single JSON column only if an experiment truly needs it).
 | `input_chars` | BIGINT | |
 | `result_chars` | BIGINT | |
 | `continuation_of_tool_call_id` | VARCHAR | initial `exec_command.tool_call_id`; present only on linked `write_stdin` calls |
-| `command_status` | VARCHAR | `running` \| `finished` \| `session_error`; only for `exec_command` / `write_stdin` results |
+| `command_status` | VARCHAR | `running` \| `finished` \| `aborted` \| `failed` \| `session_error`; only for `exec_command` / `write_stdin` results |
 | `command_exit_code` | BIGINT | present when that specific result reports completion with an exit code |
 
 **Effective tool latency** = `internal` if present else `wall` (legacy `latency_ms` is not in the

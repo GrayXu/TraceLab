@@ -29,7 +29,10 @@ WITH command_calls AS (
     tc.result_at,
     tc.command_status,
     tc.command_exit_code,
-    COALESCE(tc.tool_internal_latency_ms, tc.tool_wall_latency_ms) AS tool_call_time_ms
+    COALESCE(
+      TRY_CAST(tc.tool_internal_latency_ms AS DOUBLE),
+      TRY_CAST(tc.tool_wall_latency_ms AS DOUBLE)
+    ) AS tool_call_time_ms
   FROM tool_calls AS tc
   JOIN rounds AS r USING (round_pk)
   WHERE r.provider = 'codex'
@@ -126,5 +129,6 @@ def command_chains(con: Any):
     chain that reports ``finished``. For a continued command that is the first terminal
     ``write_stdin`` result. ``tool_call_time_sum_ms`` instead sums the effective latency of the
     initial call and all linked continuations; the two metrics are intentionally not equated.
+    Aborted/failed chains retain that final status but have no observed-finish timestamp.
     """
     return con.execute(COMMAND_CHAINS_SQL)

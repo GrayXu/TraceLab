@@ -29,8 +29,16 @@ CONTINUATION_FAILURE_RE = re.compile(
     r"session(?: ID)? [A-Za-z0-9_-]+ (?:was )?not found)",
     re.IGNORECASE,
 )
+COMMAND_ABORTED_RE = re.compile(r"^aborted by user(?: after [0-9.]+s)?\s*$", re.IGNORECASE)
+COMMAND_FAILURE_RE = re.compile(
+    r"^(?:exec_command failed\b|failed to parse function arguments\b)",
+    re.IGNORECASE,
+)
+WRAPPED_OUTPUT_MARKER = "\nOutput:\n"
 PROCESS_ROOT_TOOLS = frozenset(("exec_command",))
 PROCESS_CONTINUATION_TOOLS = frozenset(("write_stdin",))
+TERMINAL_COMMAND_STATUSES = frozenset(("finished", "aborted", "failed", "session_error"))
+ERROR_COMMAND_STATUSES = TERMINAL_COMMAND_STATUSES - {"finished"}
 
 
 def usage_int(usage: dict[str, Any], key: str) -> int:
@@ -58,13 +66,17 @@ def wall_time_ms_from_output(output: Any) -> int | None:
 def output_metadata(output: Any) -> dict[str, Any] | None:
     if not isinstance(output, str):
         return None
-    try:
-        parsed = json.loads(output)
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(parsed, dict) or not isinstance(parsed.get("metadata"), dict):
-        return None
-    return parsed["metadata"]
+    candidates = [output]
+    if WRAPPED_OUTPUT_MARKER in output:
+        candidates.append(output.rsplit(WRAPPED_OUTPUT_MARKER, 1)[1])
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict) and isinstance(parsed.get("metadata"), dict):
+            return parsed["metadata"]
+    return None
 
 
 def exit_code_from_output(output: Any) -> int | None:
@@ -88,6 +100,10 @@ def infer_error_from_output(output: Any) -> bool | None:
         success = metadata.get("success")
         if isinstance(success, bool):
             return not success
+    if isinstance(output, str) and (
+        COMMAND_ABORTED_RE.match(output) or COMMAND_FAILURE_RE.match(output)
+    ):
+        return True
     return None
 
 
@@ -121,6 +137,10 @@ def command_observation(
         return None, None, None
     if not isinstance(output, str):
         output = ""
+    if COMMAND_ABORTED_RE.match(output):
+        return "aborted", None, None
+    if COMMAND_FAILURE_RE.match(output):
+        return "failed", None, None
     running = PROCESS_RUNNING_RE.search(output)
     if running:
         return "running", running.group(1), None
@@ -204,6 +224,8 @@ def apply_tool_output(
         tool.get("tool_name"),
         explicit_exit_code=explicit_exit_code,
     )
+    if status in ERROR_COMMAND_STATUSES and is_error is None:
+        tool["is_error"] = True
 
     if observed_session_id is not None:
         tool["_process_session_id"] = observed_session_id
@@ -222,7 +244,7 @@ def apply_tool_output(
     # A model-facing function result has higher priority than the runner's exec_command_end event.
     # This resolves the race where exec_command_end says the OS process has finished, but the result
     # returned to the model says it must continue through write_stdin. Within the same priority,
-    # completion is monotonic so a replayed "running" result cannot undo "finished".
+    # a terminal status is monotonic so a replayed "running" result cannot undo it.
     if status is not None:
         source_priority = 2 if observation_source.endswith("function_call_output") else 1
         current_source_priority = tool.get("_command_status_source_priority", -1)
@@ -232,7 +254,7 @@ def apply_tool_output(
             or source_priority > current_source_priority
             or (
                 source_priority == current_source_priority
-                and (current_status != "finished" or status == "finished")
+                and current_status not in TERMINAL_COMMAND_STATUSES
             )
         )
         if should_replace:
