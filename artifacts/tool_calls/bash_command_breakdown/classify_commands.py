@@ -285,10 +285,101 @@ def _label_node(node, heredoc: bool) -> tuple[str | None, str | None]:
     return lbl, None
 
 
+_SKELETON_OPERATORS = {"|", "&&", "||"}
+_SKELETON_COMPLEX_NODES = {"command_substitution", "process_substitution"}
+
+
+def _contains_complex_skeleton_node(node) -> bool:
+    """Whether a simple command hides another command whose relationship we would lose."""
+    for child in node.children:
+        if child.type in _SKELETON_COMPLEX_NODES or _contains_complex_skeleton_node(child):
+            return True
+    return False
+
+
+def _skeleton_node(node, heredoc: bool = False) -> str | None:
+    """Render a deliberately small executable/operator grammar, or reject the whole structure.
+
+    Supported grammar: normalized commands; pipelines (``|``); conditional lists (``&&``/``||``);
+    semicolon/newline sequences (canonicalized to ``;``); and loops (collapsed to ``<loops>``).
+    If/case statements, functions, subshells, background jobs, command substitutions, and
+    unresolved executable names return ``None``.
+    """
+    if node.type == "program":
+        children = [child for child in node.children if child.type != "comment"]
+        if not children:
+            return None
+        statements: list[str] = []
+        expect_statement = True
+        for child in children:
+            if child.type == ";":
+                if expect_statement:
+                    return None
+                expect_statement = True
+                continue
+            if not child.is_named:
+                return None
+            # Adjacent named children are newline-separated statements because tree-sitter omits
+            # newline separator tokens. Both newlines and explicit semicolons canonicalize to `;`.
+            part = _skeleton_node(child, heredoc)
+            if part is None:
+                return None
+            statements.append(part)
+            expect_statement = False
+        return " ; ".join(statements)
+
+    if node.type in {"for_statement", "while_statement"}:
+        return "<loops>"
+
+    if node.type == "redirected_statement":
+        body = node.child_by_field_name("body")
+        if body is None:
+            return None
+        has_heredoc = any(child.type == "heredoc_redirect" for child in node.children)
+        return _skeleton_node(body, heredoc or has_heredoc)
+
+    if node.type == "command":
+        if _contains_complex_skeleton_node(node):
+            return None
+        label, reason = _label_node(node, heredoc)
+        return label if label is not None and reason is None else None
+
+    if node.type not in {"pipeline", "list"}:
+        return None
+
+    parts: list[str] = []
+    for child in node.children:
+        if child.type in _SKELETON_OPERATORS:
+            parts.append(child.type)
+            continue
+        if not child.is_named:
+            return None
+        part = _skeleton_node(child, heredoc)
+        if part is None:
+            return None
+        parts.append(part)
+
+    if not parts or len(parts) % 2 == 0:
+        return None
+    if any(
+        (index % 2 == 0 and part in _SKELETON_OPERATORS)
+        or (index % 2 == 1 and part not in _SKELETON_OPERATORS)
+        for index, part in enumerate(parts)
+    ):
+        return None
+    return " ".join(parts)
+
+
 def extract(raw: Any) -> dict[str, Any]:
-    """Parse one command call. Returns {labels, not_sure, reason, command}."""
+    """Parse one call into labels plus a simple executable/operator command skeleton."""
     kind, val = normalize(raw)
-    out: dict[str, Any] = {"labels": [], "not_sure": 0, "reason": None, "command": ""}
+    out: dict[str, Any] = {
+        "labels": [],
+        "not_sure": 0,
+        "reason": None,
+        "command": "",
+        "command_skeleton": "",
+    }
     if kind is None:
         out["not_sure"] = 1
         out["reason"] = "undecodable"
@@ -298,7 +389,9 @@ def extract(raw: Any) -> dict[str, Any]:
         out["command"] = " ".join(val)
         st, idx = seg_head(val)
         if st == "exe":
-            out["labels"].append(label_exe(val[idx:]))
+            label = label_exe(val[idx:])
+            out["labels"].append(label)
+            out["command_skeleton"] = label
         else:
             out["not_sure"] = 1
             out["reason"] = f"argv-{st}"
@@ -312,6 +405,7 @@ def extract(raw: Any) -> dict[str, Any]:
         return out
     if APPLY_PATCH.match(s):                   # editor; the patch body is data, not shell
         out["labels"].append("apply_patch")
+        out["command_skeleton"] = "apply_patch"
         return out
     for marker in HTML_ENTITIES:
         if marker in s:
@@ -326,6 +420,8 @@ def extract(raw: Any) -> dict[str, Any]:
         out["not_sure"] = 1
         out["reason"] = "parse-error"
         return out
+
+    out["command_skeleton"] = _skeleton_node(root) or ""
 
     acc: list = []
     _collect(root, False, acc)
@@ -371,7 +467,7 @@ def kind_of(exe: str) -> str:
 def classify_source(labels: list[str], not_sure: int) -> str:
     """deterministic (fully named), partial (some named + some unknown), unresolved (nothing named).
 
-    ``unresolved`` is the ~0.14% tail — dynamic program names, parse errors, opaque payloads — that
+    ``unresolved`` is the small tail of dynamic names, parse errors, and opaque payloads that
     the deterministic layer refuses to guess. Empty executables; the honest "other" bucket.
     """
     if not_sure == 0:
@@ -449,6 +545,7 @@ def main(argv: list[str] | None = None) -> int:
                     "tool_call_id": tool.get("tool_call_id"),
                     "tool_name": tool.get("tool_name"),
                     "command": res["command"],
+                    "command_skeleton": res["command_skeleton"],
                     "latency_ms": round(float(ms), 3) if ms is not None else None,
                     "executables": labels,
                     "kinds": [kind_of(e) for e in labels],
