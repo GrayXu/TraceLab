@@ -97,21 +97,6 @@ class StableIdSanitizer:
 
         return self.map_value("session_id", original, make_value)
 
-    def process_session_id(self, provider: str, trace_session_id: Any, original: Any) -> Any:
-        """Pseudonymize a runner id within its trace-session scope.
-
-        Runner ids are short and can be reused by unrelated Codex processes. Including the outer
-        session prevents false cross-conversation linkage while preserving every continuation join.
-        """
-        if original is None:
-            return None
-        scoped = f"{provider}:{trace_session_id}:{original}"
-        return self.atomic_id(
-            "process_session_id",
-            scoped,
-            fallback_prefix="process_",
-        )
-
     def round_id(self, provider: str, original: Any) -> Any:
         if not isinstance(original, str):
             return original
@@ -184,21 +169,12 @@ def sanitize_row(row: dict[str, Any], ids: StableIdSanitizer) -> dict[str, Any]:
                 )
             if (
                 isinstance(original_tool, dict)
-                and original_tool.get("root_tool_call_id") is not None
+                and original_tool.get("continuation_of_tool_call_id") is not None
             ):
-                tool["root_tool_call_id"] = ids.atomic_id(
+                tool["continuation_of_tool_call_id"] = ids.atomic_id(
                     "tool_call_id",
-                    original_tool.get("root_tool_call_id"),
+                    original_tool.get("continuation_of_tool_call_id"),
                     fallback_prefix="call_",
-                )
-            if (
-                isinstance(original_tool, dict)
-                and original_tool.get("process_session_id") is not None
-            ):
-                tool["process_session_id"] = ids.process_session_id(
-                    provider,
-                    original.get("session_id"),
-                    original_tool.get("process_session_id"),
                 )
             tool.pop("input", None)
             if isinstance(original_tool, dict) and "_assistant_uuid" in original_tool:

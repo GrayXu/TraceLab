@@ -74,12 +74,9 @@ _TOOL_FIELDS = (
     ("is_error", "BOOLEAN", "tc.is_error"),
     ("input_chars", "BIGINT", "tc.input_chars"),
     ("result_chars", "BIGINT", "tc.result_chars"),
-    ("process_session_id", "VARCHAR", "tc.process_session_id"),
-    ("process_state", "VARCHAR", "tc.process_state"),
-    ("process_exit_code", "BIGINT", "tc.process_exit_code"),
-    ("root_tool_call_id", "VARCHAR", "tc.root_tool_call_id"),
-    ("process_finished_at", "TIMESTAMP", _ts("tc.process_finished_at")),
-    ("process_total_wall_latency_ms", "BIGINT", "tc.process_total_wall_latency_ms"),
+    ("continuation_of_tool_call_id", "VARCHAR", "tc.continuation_of_tool_call_id"),
+    ("command_status", "VARCHAR", "tc.command_status"),
+    ("command_exit_code", "BIGINT", "tc.command_exit_code"),
 )
 _TIMING_FIELDS = (
     ("event_type", "VARCHAR", "te.event_type"),
@@ -363,24 +360,58 @@ def _install_compat_views(con: "duckdb.DuckDBPyConnection") -> None:
             """
         )
 
-    # Process-continuation linkage was added after the first public DuckDB release. Keep old assets
-    # queryable by exposing the current nullable columns through a shadowing temporary view.
-    process_fields = (
-        ("process_session_id", "VARCHAR"),
-        ("process_state", "VARCHAR"),
-        ("process_exit_code", "BIGINT"),
-        ("root_tool_call_id", "VARCHAR"),
-        ("process_finished_at", "TIMESTAMP"),
-        ("process_total_wall_latency_ms", "BIGINT"),
-    )
+    # Command-continuation fields were simplified after their first release. For DBs with the old
+    # process-oriented columns, derive the new per-call facts in a compatibility view. Earlier DBs
+    # with no continuation data receive nullable columns.
     missing = [
-        (name, kind)
-        for name, kind in process_fields
+        name
+        for name in (
+            "continuation_of_tool_call_id",
+            "command_status",
+            "command_exit_code",
+        )
         if not _has_column(con, "tool_calls", name)
     ]
     if missing:
-        nulls = ", ".join(f"CAST(NULL AS {kind}) AS {_ident(name)}" for name, kind in missing)
-        con.execute(f"CREATE TEMP VIEW tool_calls AS SELECT *, {nulls} FROM {db}.tool_calls")
+        has_old_link = _has_column(con, "tool_calls", "root_tool_call_id")
+        has_old_status = _has_column(con, "tool_calls", "process_state")
+        has_old_exit = _has_column(con, "tool_calls", "process_exit_code")
+        has_old_session = _has_column(con, "tool_calls", "process_session_id")
+        derived: dict[str, str] = {
+            "continuation_of_tool_call_id": (
+                "CASE WHEN tool_name = 'write_stdin' THEN root_tool_call_id END"
+                if has_old_link
+                else "CAST(NULL AS VARCHAR)"
+            ),
+            "command_status": (
+                "CASE "
+                "WHEN tool_name = 'exec_command' AND process_session_id IS NOT NULL "
+                "THEN 'running' "
+                "WHEN process_state = 'exited' THEN 'finished' "
+                "WHEN process_state = 'continuation_error' THEN 'session_error' "
+                "ELSE process_state END"
+                if has_old_status and has_old_session
+                else (
+                    "CASE "
+                    "WHEN process_state = 'exited' THEN 'finished' "
+                    "WHEN process_state = 'continuation_error' THEN 'session_error' "
+                    "ELSE process_state END"
+                    if has_old_status
+                    else "CAST(NULL AS VARCHAR)"
+                )
+            ),
+            "command_exit_code": (
+                "CASE "
+                "WHEN tool_name = 'exec_command' AND process_session_id IS NOT NULL THEN NULL "
+                "ELSE process_exit_code END"
+                if has_old_exit and has_old_session
+                else ("process_exit_code" if has_old_exit else "CAST(NULL AS BIGINT)")
+            ),
+        }
+        additions = ", ".join(
+            f"{derived[name]} AS {_ident(name)}" for name in missing
+        )
+        con.execute(f"CREATE TEMP VIEW tool_calls AS SELECT *, {additions} FROM {db}.tool_calls")
 
 
 def connect(db_path, *, read_only: bool = True) -> "duckdb.DuckDBPyConnection":

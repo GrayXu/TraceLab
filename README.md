@@ -354,10 +354,10 @@ timing list, and nested tool metadata.
   `tools[].input` and keep only `input_chars`.
 - `tools[]` includes `tool_name`, `tool_call_id`, `emitted_at`, `input_chars`,
   `result_chars`, `tool_wall_latency_ms`, `tool_internal_latency_ms`, `is_error`, and
-  `result_at`. Codex process continuations additionally carry `process_session_id`,
-  `process_state`, `process_exit_code`, `root_tool_call_id`, `process_finished_at`, and
-  `process_total_wall_latency_ms`. Full tool outputs are not stored — content is summarized by
-  `result_chars`.
+  `result_at`. Codex `exec_command` / `write_stdin` results may additionally carry
+  `command_status` and `command_exit_code`; `write_stdin` carries
+  `continuation_of_tool_call_id` when it can be linked to the initial `exec_command`. Full tool
+  outputs are not stored — content is summarized by `result_chars`.
 </details>
 
 <details>
@@ -384,17 +384,14 @@ Tool latency is split into two fields:
 - `tool_wall_latency_ms` — trace-observed wall latency, computed as `result_at - emitted_at`.
 - `tool_internal_latency_ms` — tool/runner-reported duration when available (Codex wrapper
   `Wall time` or Claude `durationMs` / `durationSeconds`); otherwise `null`.
-- `process_total_wall_latency_ms` — for a Codex process root, elapsed wall time from the root
-  command's `emitted_at` through the first terminal `write_stdin` result (or through the immediate
-  command result when no continuation session exists).
-
-`process_total_wall_latency_ms` is a lifecycle span, not the sum of the root `exec_command` and its
-`write_stdin` call latencies. That sum excludes gaps between polls and can overlap when calls run in
-parallel.
-
 Analyses use `tool_internal_latency_ms` when present, then fall back to
 `tool_wall_latency_ms`. The CSV exporter uses `tool_wall_latency_ms` for
 `tool_wait_after_ms` by default.
+
+Codex command lifecycle values are derived, not stored. The shared
+`artifacts/utils/command_chains.py` utility links continuations and computes both elapsed wall time
+through the first `finished` result and summed per-call tool time. Those quantities are not equal:
+the per-call sum excludes gaps between polls and may overlap when calls run in parallel.
 
 For LLM-side latency, use `timing_events[]` rather than a first/last timestamp pair. The
 usual proxy for "input ready → next tool input" is the latest `user_message` or

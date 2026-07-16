@@ -110,13 +110,15 @@ def process_session_from_input(input_value: Any) -> str | None:
     return str(parsed["session_id"])
 
 
-def process_observation(
+def command_observation(
     output: Any,
     tool_name: str | None,
     *,
     explicit_exit_code: int | None = None,
 ) -> tuple[str | None, str | None, int | None]:
-    """Return ``(state, process_session_id, exit_code)`` from one runner response."""
+    """Return ``(status, runner_session_id, exit_code)`` from one command result."""
+    if tool_name not in PROCESS_ROOT_TOOLS | PROCESS_CONTINUATION_TOOLS:
+        return None, None, None
     if not isinstance(output, str):
         output = ""
     running = PROCESS_RUNNING_RE.search(output)
@@ -127,14 +129,14 @@ def process_observation(
     if exit_code is None:
         exit_code = exit_code_from_output(output)
     if exit_code is not None:
-        return "exited", None, exit_code
+        return "finished", None, exit_code
 
     metadata = output_metadata(output)
     if metadata is not None and isinstance(metadata.get("success"), bool):
-        return "exited", None, None
+        return "finished", None, None
 
     if tool_name in PROCESS_CONTINUATION_TOOLS and CONTINUATION_FAILURE_RE.search(output):
-        return "continuation_error", None, None
+        return "session_error", None, None
     return None, None, None
 
 
@@ -163,19 +165,13 @@ def add_tool(
         "tool_wall_latency_ms": None,
         "tool_internal_latency_ms": None,
         "is_error": None,
-        "process_session_id": None,
-        "process_state": None,
-        "process_exit_code": None,
-        "root_tool_call_id": call_id if tool_name in PROCESS_ROOT_TOOLS else None,
-        "process_finished_at": None,
-        "process_total_wall_latency_ms": None,
     }
     if tool_name in PROCESS_CONTINUATION_TOOLS:
         process_session_id = process_session_from_input(input_value)
-        tool["process_session_id"] = process_session_id
+        tool["_process_session_id"] = process_session_id
         root = process_roots.get(process_session_id) if process_session_id is not None else None
         if root is not None:
-            tool["root_tool_call_id"] = root.get("tool_call_id")
+            tool["continuation_of_tool_call_id"] = root.get("tool_call_id")
     tools.append(tool)
     tool_by_id[call_id] = tool
     return tool
@@ -203,27 +199,15 @@ def apply_tool_output(
     if is_error is not None:
         tool["is_error"] = is_error
 
-    state, observed_session_id, exit_code = process_observation(
+    status, observed_session_id, exit_code = command_observation(
         output,
         tool.get("tool_name"),
         explicit_exit_code=explicit_exit_code,
     )
 
-    # exec_command_end can race ahead of a function result that says the command yielded a process
-    # session. For the normalized observable lifecycle, a continued command closes only when a
-    # later write_stdin reports the terminal state. Treat this runner event as provisional until we
-    # know whether the model-facing result supplied a process-session id.
-    provisional_terminal = tool.get("_process_terminal_source") == "exec_command_end"
-    if state == "running" and observed_session_id is not None and provisional_terminal:
-        tool["process_state"] = None
-        tool["process_exit_code"] = None
-        tool["process_finished_at"] = None
-        tool["process_total_wall_latency_ms"] = None
-        tool.pop("_process_terminal_source", None)
-
-    if observed_session_id is not None and tool.get("process_state") != "exited":
-        tool["process_session_id"] = observed_session_id
-    process_session_id = tool.get("process_session_id")
+    if observed_session_id is not None:
+        tool["_process_session_id"] = observed_session_id
+    process_session_id = tool.get("_process_session_id")
 
     if tool.get("tool_name") in PROCESS_ROOT_TOOLS and process_session_id is not None:
         process_roots[process_session_id] = tool
@@ -232,52 +216,32 @@ def apply_tool_output(
         if isinstance(process_session_id, str)
         else None
     )
-    if root is None and tool.get("tool_name") in PROCESS_ROOT_TOOLS:
-        root = tool
-    if root is not None and tool.get("root_tool_call_id") is None:
-        tool["root_tool_call_id"] = root.get("tool_call_id")
+    if root is not None and tool.get("tool_name") in PROCESS_CONTINUATION_TOOLS:
+        tool["continuation_of_tool_call_id"] = root.get("tool_call_id")
 
-    # Once a process session is known, exec_command_end is not the normalized lifecycle terminal.
-    # The terminal write_stdin result defines observable completion for the continued command.
-    if (
-        state == "exited"
-        and observation_source == "exec_command_end"
-        and root is not None
-        and root.get("process_session_id") is not None
-    ):
-        state = None
-        exit_code = None
-
-    # Runner logs can report the same call through both function_call_output and a later
-    # exec_command_end event. Terminal state is monotonic: a delayed/replayed "running" response
-    # must never regress an already-observed exit.
-    if state is not None and tool.get("process_state") != "exited":
-        tool["process_state"] = state
-    if exit_code is not None and tool.get("process_exit_code") is None:
-        tool["process_exit_code"] = exit_code
-    if state == "exited":
-        first_root_terminal = root is not None and root.get("process_finished_at") is None
-        if tool.get("process_finished_at") is None:
-            tool["process_finished_at"] = timestamp
-            tool["_process_terminal_source"] = observation_source
-        # The first terminal observation defines the process finish. In particular, a terminal
-        # write_stdin result wins over a duplicate exec_command_end event emitted milliseconds later.
-        if first_root_terminal:
-            root["process_state"] = "exited"
-            root["process_exit_code"] = exit_code
-            root["_process_terminal_source"] = (
-                "write_stdin"
-                if tool.get("tool_name") in PROCESS_CONTINUATION_TOOLS
-                else observation_source
+    # A model-facing function result has higher priority than the runner's exec_command_end event.
+    # This resolves the race where exec_command_end says the OS process has finished, but the result
+    # returned to the model says it must continue through write_stdin. Within the same priority,
+    # completion is monotonic so a replayed "running" result cannot undo "finished".
+    if status is not None:
+        source_priority = 2 if observation_source.endswith("function_call_output") else 1
+        current_source_priority = tool.get("_command_status_source_priority", -1)
+        current_status = tool.get("command_status")
+        should_replace = (
+            current_status is None
+            or source_priority > current_source_priority
+            or (
+                source_priority == current_source_priority
+                and (current_status != "finished" or status == "finished")
             )
-            if exit_code is not None:
-                root["is_error"] = exit_code != 0
-            elif is_error is not None:
-                root["is_error"] = is_error
-            root["process_finished_at"] = timestamp
-            root["process_total_wall_latency_ms"] = timestamp_delta_ms(
-                root.get("emitted_at"), timestamp
-            )
+        )
+        if should_replace:
+            tool["command_status"] = status
+            tool["_command_status_source_priority"] = source_priority
+            if exit_code is None:
+                tool.pop("command_exit_code", None)
+            else:
+                tool["command_exit_code"] = exit_code
     return first_result
 
 
@@ -729,9 +693,10 @@ def extract_codex_session(
                 segment_timing_events = []
                 segment_tools = []
 
-    # Private extraction-only provenance must not become part of the normalized schema.
+    # Private extraction-only runner ids/provenance must not enter the normalized schema.
     for tool in tool_by_id.values():
-        tool.pop("_process_terminal_source", None)
+        tool.pop("_process_session_id", None)
+        tool.pop("_command_status_source_priority", None)
     return rounds
 
 

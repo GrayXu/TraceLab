@@ -10,6 +10,7 @@ sys.path.insert(0, str(REPO_ROOT / "scripts"))
 sys.path.insert(0, str(REPO_ROOT / "artifacts" / "utils"))
 
 from extract_codex_rounds import extract_codex_session  # noqa: E402
+from command_chains import command_chains  # noqa: E402
 from sanitize_round_trace import StableIdSanitizer, sanitize_row  # noqa: E402
 from trace_db import connect, materialize  # noqa: E402
 
@@ -146,7 +147,7 @@ def _extract(tmp_path: Path, records: list[dict]) -> list[dict]:
     return extract_codex_session(session)
 
 
-def test_immediate_exec_records_its_own_terminal_span(tmp_path: Path) -> None:
+def test_immediate_exec_records_finished_status(tmp_path: Path) -> None:
     records = _continued_session_records("")[:4]
     records.append(
         _record(
@@ -179,16 +180,13 @@ def test_immediate_exec_records_its_own_terminal_span(tmp_path: Path) -> None:
     )
     root = _extract(tmp_path, records)[0]["tools"][0]
 
-    assert root["process_session_id"] is None
-    assert root["root_tool_call_id"] == "call_root"
-    assert root["process_state"] == "exited"
-    assert root["process_exit_code"] == 3
-    assert root["process_finished_at"] == "2026-01-01T00:00:01.000Z"
-    assert root["process_total_wall_latency_ms"] == 1_000
+    assert "continuation_of_tool_call_id" not in root
+    assert root["command_status"] == "finished"
+    assert root["command_exit_code"] == 3
     assert root["is_error"] is True
 
 
-def test_continued_exec_is_linked_and_backfilled(tmp_path: Path) -> None:
+def test_continued_exec_keeps_per_call_status_and_links(tmp_path: Path) -> None:
     rounds = _extract(
         tmp_path,
         _continued_session_records(
@@ -201,22 +199,17 @@ def test_continued_exec_is_linked_and_backfilled(tmp_path: Path) -> None:
     poll = rounds[1]["tools"][0]
     finish = rounds[2]["tools"][0]
 
-    assert root["process_session_id"] == "74219"
-    assert root["root_tool_call_id"] == "call_root"
-    assert root["process_state"] == "exited"
-    assert root["process_exit_code"] == 0
-    assert root["process_finished_at"] == "2026-01-01T00:00:08.000Z"
-    assert root["process_total_wall_latency_ms"] == 8_000
+    assert "continuation_of_tool_call_id" not in root
+    assert root["command_status"] == "running"
+    assert "command_exit_code" not in root
     assert root["tool_wall_latency_ms"] == 1_000
     assert root["is_error"] is False
 
-    assert poll["process_session_id"] == "74219"
-    assert poll["root_tool_call_id"] == "call_root"
-    assert poll["process_state"] == "running"
-    assert finish["process_session_id"] == "74219"
-    assert finish["root_tool_call_id"] == "call_root"
-    assert finish["process_state"] == "exited"
-    assert finish["process_exit_code"] == 0
+    assert poll["continuation_of_tool_call_id"] == "call_root"
+    assert poll["command_status"] == "running"
+    assert finish["continuation_of_tool_call_id"] == "call_root"
+    assert finish["command_status"] == "finished"
+    assert finish["command_exit_code"] == 0
 
 
 def test_exec_command_end_before_running_result_is_only_provisional(tmp_path: Path) -> None:
@@ -242,12 +235,10 @@ def test_exec_command_end_before_running_result_is_only_provisional(tmp_path: Pa
     root = rounds[0]["tools"][0]
     finish = rounds[2]["tools"][0]
 
-    assert root["process_session_id"] == "74219"
-    assert root["process_state"] == "exited"
-    assert root["process_exit_code"] == 0
-    assert root["process_finished_at"] == "2026-01-01T00:00:08.000Z"
-    assert root["process_total_wall_latency_ms"] == 8_000
-    assert finish["root_tool_call_id"] == "call_root"
+    assert root["command_status"] == "running"
+    assert "command_exit_code" not in root
+    assert finish["continuation_of_tool_call_id"] == "call_root"
+    assert finish["command_status"] == "finished"
 
 
 def test_continuation_error_does_not_guess_a_finish(tmp_path: Path) -> None:
@@ -261,11 +252,9 @@ def test_continuation_error_does_not_guess_a_finish(tmp_path: Path) -> None:
     root = rounds[0]["tools"][0]
     failed_write = rounds[2]["tools"][0]
 
-    assert root["process_state"] == "running"
-    assert root["process_finished_at"] is None
-    assert root["process_total_wall_latency_ms"] is None
-    assert failed_write["process_state"] == "continuation_error"
-    assert failed_write["root_tool_call_id"] == "call_root"
+    assert root["command_status"] == "running"
+    assert failed_write["command_status"] == "session_error"
+    assert failed_write["continuation_of_tool_call_id"] == "call_root"
 
 
 def test_sanitizer_preserves_links_with_pseudonymous_ids(tmp_path: Path) -> None:
@@ -284,22 +273,18 @@ def test_sanitizer_preserves_links_with_pseudonymous_ids(tmp_path: Path) -> None
     finish = sanitized[2]["tools"][0]
 
     assert "input" not in root and "input" not in poll and "input" not in finish
-    assert root["process_session_id"] != "74219"
-    assert root["process_session_id"] == poll["process_session_id"]
-    assert poll["process_session_id"] == finish["process_session_id"]
-    assert root["root_tool_call_id"] == root["tool_call_id"]
-    assert poll["root_tool_call_id"] == root["tool_call_id"]
-    assert finish["root_tool_call_id"] == root["tool_call_id"]
-    assert root["process_exit_code"] == 7
-    assert root["process_total_wall_latency_ms"] == 8_000
-
-    other_session = json.loads(json.dumps(rounds[0]))
-    other_session["session_id"] = "codex:unrelated-session"
-    other = sanitize_row(other_session, ids)["tools"][0]
-    assert other["process_session_id"] != root["process_session_id"]
+    assert "continuation_of_tool_call_id" not in root
+    assert poll["continuation_of_tool_call_id"] == root["tool_call_id"]
+    assert finish["continuation_of_tool_call_id"] == root["tool_call_id"]
+    assert root["command_status"] == "running"
+    assert finish["command_status"] == "finished"
+    assert finish["command_exit_code"] == 7
+    assert "_process_session_id" not in root
+    assert "_process_session_id" not in poll
+    assert "_process_session_id" not in finish
 
 
-def test_duckdb_keeps_process_linkage_scalars(tmp_path: Path) -> None:
+def test_duckdb_keeps_minimal_command_facts_and_derives_lifecycle(tmp_path: Path) -> None:
     rounds = _extract(
         tmp_path,
         _continued_session_records(
@@ -315,13 +300,64 @@ def test_duckdb_keeps_process_linkage_scalars(tmp_path: Path) -> None:
     con = connect(db, read_only=True)
     try:
         root = con.execute(
-            "SELECT process_session_id, process_state, process_exit_code, root_tool_call_id, "
-            "process_finished_at, process_total_wall_latency_ms "
+            "SELECT continuation_of_tool_call_id, command_status, command_exit_code "
             "FROM tool_calls WHERE tool_call_id = 'call_root'"
         ).fetchone()
+        finish = con.execute(
+            "SELECT continuation_of_tool_call_id, command_status, command_exit_code "
+            "FROM tool_calls WHERE tool_call_id = 'call_finish'"
+        ).fetchone()
+        derived = command_chains(con).fetchone()
+        columns = [item[0] for item in con.description]
     finally:
         con.close()
 
-    assert root[:4] == ("74219", "exited", 0, "call_root")
-    assert root[4] is not None
-    assert root[5] == 8_000
+    assert root == (None, "running", None)
+    assert finish == ("call_root", "finished", 0)
+    row = dict(zip(columns, derived, strict=True))
+    assert row["initial_tool_call_id"] == "call_root"
+    assert row["initial_status"] == "running"
+    assert row["final_status"] == "finished"
+    assert row["command_exit_code"] == 0
+    assert row["continuation_calls"] == 2
+    assert row["finishing_tool_call_id"] == "call_finish"
+    assert row["wall_time_until_finished_ms"] == 8_000
+    assert row["tool_call_time_sum_ms"] == 6_000
+
+
+def test_command_chain_utility_handles_immediate_exec(tmp_path: Path) -> None:
+    records = _continued_session_records("")[:4]
+    records.append(
+        _record(
+            "2026-01-01T00:00:01.000Z",
+            "response_item",
+            {
+                "type": "function_call_output",
+                "call_id": "call_root",
+                "output": (
+                    "Chunk ID: abc\nWall time: 1.0000 seconds\n"
+                    "Process exited with code 0\nOutput:\ndone\n"
+                ),
+            },
+        )
+    )
+    rounds = _extract(tmp_path, records)
+    trace = tmp_path / "immediate.jsonl"
+    trace.write_text("".join(json.dumps(row) + "\n" for row in rounds))
+    db = tmp_path / "immediate.duckdb"
+    materialize(trace, db)
+
+    con = connect(db, read_only=True)
+    try:
+        derived = command_chains(con).fetchone()
+        columns = [item[0] for item in con.description]
+    finally:
+        con.close()
+
+    row = dict(zip(columns, derived, strict=True))
+    assert row["initial_status"] == "finished"
+    assert row["final_status"] == "finished"
+    assert row["continuation_calls"] == 0
+    assert row["finishing_tool_call_id"] == "call_root"
+    assert row["wall_time_until_finished_ms"] == 1_000
+    assert row["tool_call_time_sum_ms"] == 1_000
