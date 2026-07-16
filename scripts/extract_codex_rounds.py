@@ -189,6 +189,7 @@ def apply_tool_output(
     process_roots: dict[str, dict[str, Any]],
     *,
     explicit_exit_code: int | None = None,
+    observation_source: str,
 ) -> bool:
     first_result = tool.get("result_at") is None
     if first_result:
@@ -207,6 +208,19 @@ def apply_tool_output(
         tool.get("tool_name"),
         explicit_exit_code=explicit_exit_code,
     )
+
+    # exec_command_end can race ahead of a function result that says the command yielded a process
+    # session. For the normalized observable lifecycle, a continued command closes only when a
+    # later write_stdin reports the terminal state. Treat this runner event as provisional until we
+    # know whether the model-facing result supplied a process-session id.
+    provisional_terminal = tool.get("_process_terminal_source") == "exec_command_end"
+    if state == "running" and observed_session_id is not None and provisional_terminal:
+        tool["process_state"] = None
+        tool["process_exit_code"] = None
+        tool["process_finished_at"] = None
+        tool["process_total_wall_latency_ms"] = None
+        tool.pop("_process_terminal_source", None)
+
     if observed_session_id is not None and tool.get("process_state") != "exited":
         tool["process_session_id"] = observed_session_id
     process_session_id = tool.get("process_session_id")
@@ -223,6 +237,17 @@ def apply_tool_output(
     if root is not None and tool.get("root_tool_call_id") is None:
         tool["root_tool_call_id"] = root.get("tool_call_id")
 
+    # Once a process session is known, exec_command_end is not the normalized lifecycle terminal.
+    # The terminal write_stdin result defines observable completion for the continued command.
+    if (
+        state == "exited"
+        and observation_source == "exec_command_end"
+        and root is not None
+        and root.get("process_session_id") is not None
+    ):
+        state = None
+        exit_code = None
+
     # Runner logs can report the same call through both function_call_output and a later
     # exec_command_end event. Terminal state is monotonic: a delayed/replayed "running" response
     # must never regress an already-observed exit.
@@ -234,11 +259,17 @@ def apply_tool_output(
         first_root_terminal = root is not None and root.get("process_finished_at") is None
         if tool.get("process_finished_at") is None:
             tool["process_finished_at"] = timestamp
+            tool["_process_terminal_source"] = observation_source
         # The first terminal observation defines the process finish. In particular, a terminal
         # write_stdin result wins over a duplicate exec_command_end event emitted milliseconds later.
         if first_root_terminal:
             root["process_state"] = "exited"
             root["process_exit_code"] = exit_code
+            root["_process_terminal_source"] = (
+                "write_stdin"
+                if tool.get("tool_name") in PROCESS_CONTINUATION_TOOLS
+                else observation_source
+            )
             if exit_code is not None:
                 root["is_error"] = exit_code != 0
             elif is_error is not None:
@@ -499,7 +530,14 @@ def extract_codex_session(
                 if tool is not None:
                     output = payload.get("output")
                     is_error = infer_error_from_output(output)
-                    if apply_tool_output(tool, timestamp, output, is_error, process_roots):
+                    if apply_tool_output(
+                        tool,
+                        timestamp,
+                        output,
+                        is_error,
+                        process_roots,
+                        observation_source="function_call_output",
+                    ):
                         append_timing_event(
                             pending_input_events,
                             "tool_result",
@@ -520,7 +558,14 @@ def extract_codex_session(
                 if tool is not None:
                     output = payload.get("output")
                     is_error = infer_error_from_output(output)
-                    if apply_tool_output(tool, timestamp, output, is_error, process_roots):
+                    if apply_tool_output(
+                        tool,
+                        timestamp,
+                        output,
+                        is_error,
+                        process_roots,
+                        observation_source="custom_tool_call_output",
+                    ):
                         append_timing_event(
                             pending_input_events,
                             "tool_result",
@@ -549,6 +594,7 @@ def extract_codex_session(
                         is_error,
                         process_roots,
                         explicit_exit_code=exit_code if isinstance(exit_code, int) else None,
+                        observation_source="exec_command_end",
                     ):
                         append_timing_event(
                             pending_input_events,
@@ -577,6 +623,7 @@ def extract_codex_session(
                         output,
                         is_error,
                         process_roots,
+                        observation_source="patch_apply_end",
                     ):
                         append_timing_event(
                             pending_input_events,
@@ -682,6 +729,9 @@ def extract_codex_session(
                 segment_timing_events = []
                 segment_tools = []
 
+    # Private extraction-only provenance must not become part of the normalized schema.
+    for tool in tool_by_id.values():
+        tool.pop("_process_terminal_source", None)
     return rounds
 
 

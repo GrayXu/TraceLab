@@ -384,6 +384,13 @@ Tool latency is split into two fields:
 - `tool_wall_latency_ms` — trace-observed wall latency, computed as `result_at - emitted_at`.
 - `tool_internal_latency_ms` — tool/runner-reported duration when available (Codex wrapper
   `Wall time` or Claude `durationMs` / `durationSeconds`); otherwise `null`.
+- `process_total_wall_latency_ms` — for a Codex process root, elapsed wall time from the root
+  command's `emitted_at` through the first terminal `write_stdin` result (or through the immediate
+  command result when no continuation session exists).
+
+`process_total_wall_latency_ms` is a lifecycle span, not the sum of the root `exec_command` and its
+`write_stdin` call latencies. That sum excludes gaps between polls and can overlap when calls run in
+parallel.
 
 Analyses use `tool_internal_latency_ms` when present, then fall back to
 `tool_wall_latency_ms`. The CSV exporter uses `tool_wall_latency_ms` for

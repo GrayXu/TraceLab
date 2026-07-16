@@ -219,6 +219,37 @@ def test_continued_exec_is_linked_and_backfilled(tmp_path: Path) -> None:
     assert finish["process_exit_code"] == 0
 
 
+def test_exec_command_end_before_running_result_is_only_provisional(tmp_path: Path) -> None:
+    records = _continued_session_records(
+        "Chunk ID: ghi\nWall time: 3.0000 seconds\n"
+        "Process exited with code 0\nOutput:\ndone\n"
+    )
+    records.insert(
+        4,
+        _record(
+            "2026-01-01T00:00:00.900Z",
+            "event_msg",
+            {
+                "type": "exec_command_end",
+                "call_id": "call_root",
+                "exit_code": 0,
+                "aggregated_output": "initial command interaction ended\n",
+            },
+        ),
+    )
+
+    rounds = _extract(tmp_path, records)
+    root = rounds[0]["tools"][0]
+    finish = rounds[2]["tools"][0]
+
+    assert root["process_session_id"] == "74219"
+    assert root["process_state"] == "exited"
+    assert root["process_exit_code"] == 0
+    assert root["process_finished_at"] == "2026-01-01T00:00:08.000Z"
+    assert root["process_total_wall_latency_ms"] == 8_000
+    assert finish["root_tool_call_id"] == "call_root"
+
+
 def test_continuation_error_does_not_guess_a_finish(tmp_path: Path) -> None:
     rounds = _extract(
         tmp_path,
