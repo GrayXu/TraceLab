@@ -12,14 +12,14 @@ hand-rolled tokenizer keeps hitting edge cases, so we parse each command with **
 and walk its AST — the structure comes for free and correctly. We keep the *semantic* label layer
 (``seg_head`` / ``label_exe`` / ``PLUMBING`` / wrapper + python rules) on top: the AST says *which
 words form each command*, and that layer says *which executable those words mean*. This resolves
-**99.86%** of calls deterministically, so the pipeline is fully offline — no LLM, no endpoint.
+**98.86%** of calls deterministically, so the pipeline is fully offline — no LLM, no endpoint.
 
 Precision over recall / self-validating: we only claim ``deterministic`` when the parse is clean.
 A parse error (``root.has_error`` — e.g. a truncated command, or Codex's ``apply_patch`` patch body
 which is data, not shell) → ``source="unresolved"`` (empty executables) rather than a guessed label.
 Genuinely dynamic program names (``$TOOL``, ``$(which x)`` / ``eval`` / ``bash -c "$X"``) also stay
-``unresolved``; those are undecidable without running the command. That ~0.14% tail is the honest
-"other / not a nameable command" bucket — left unnamed, never guessed.
+``unresolved``; those are undecidable without running the command. That ~1.14% partial/unresolved
+tail is retained honestly, never guessed.
 
 The parser is loaded lazily (only when a command is actually parsed), so importing ``normalize`` /
 ``KEYWORDS`` / ``PLUMBING`` from this module as a library needs no tree-sitter install.
@@ -45,7 +45,7 @@ sys.path.insert(0, str(REPO_ROOT / "artifacts" / "utils"))
 from accumulators import tool_latency_ms  # noqa: E402
 
 TRACE_DIR = REPO_ROOT / "trace"
-DEFAULT_INPUT = TRACE_DIR / "llm_round_trace.merged.all_users.jsonl"
+DEFAULT_INPUT = TRACE_DIR / "llm_round_trace_v2.merged.all_users.jsonl"
 # command/shell execute tools
 DEFAULT_TOOLS = ("Bash", "exec_command", "shell", "shell_command")
 

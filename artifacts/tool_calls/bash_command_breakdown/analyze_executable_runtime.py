@@ -157,7 +157,22 @@ def write_summary_csv(lat, kind, out: Path) -> None:
     print(f"Saved {out}", file=sys.stderr)
 
 
-def plot_runtime(lat, kind, coverage, out_dir: Path, min_calls: int, top: int, tools_only: bool) -> Path:
+def plot_runtime(
+    lat,
+    kind,
+    coverage,
+    out_dir: Path,
+    min_calls: int,
+    top: int,
+    tools_only: bool,
+    *,
+    figure_title: str = "Executable runtime — single-executable shell calls",
+    x_label: str = "runtime per call (log scale)",
+    subtitle_suffix: str = (
+        "0-second commands floored to 1 ms; multi-exe pipelines & chains excluded"
+    ),
+    output_name: str = "executable_runtime.png",
+) -> Path:
     providers = provider_order(lat)
     panels = []
     global_max = 1.0
@@ -181,7 +196,7 @@ def plot_runtime(lat, kind, coverage, out_dir: Path, min_calls: int, top: int, t
     panel_heights = [max(2.8, 0.34 * len(shown) + 1.7) for _p, shown, _d in panels]
     fig, axes = plt.subplots(len(panels), 1, figsize=(14.0, sum(panel_heights)),
                              squeeze=False, gridspec_kw={"height_ratios": panel_heights})
-    fig.suptitle("Executable runtime — single-executable shell calls", y=0.998, fontsize=17)
+    fig.suptitle(figure_title, y=0.998, fontsize=17)
 
     for ax, (prov, shown, dropped) in zip(axes.ravel(), panels):
         data = [vals for _exe, vals in shown]
@@ -215,13 +230,13 @@ def plot_runtime(lat, kind, coverage, out_dir: Path, min_calls: int, top: int, t
                 fontsize=13.5, fontweight="semibold", color=TEXT_COLOR)
         ax.text(0.0, 1.01,
                 f"single-executable calls only — {timed:,} of {total:,} ({frac:.0%}); "
-                f"0-second commands floored to 1 ms; multi-exe pipelines & chains excluded",
+                f"{subtitle_suffix}",
                 transform=ax.transAxes, ha="left", va="bottom", fontsize=9.3, color=MUTED_TEXT)
-        ax.set_xlabel("runtime per call (log scale)", fontsize=12.5, labelpad=8)
+        ax.set_xlabel(x_label, fontsize=12.5, labelpad=8)
         ax.tick_params(axis="y", labelsize=11)
 
     fig.tight_layout(rect=(0, 0, 1, 0.99), h_pad=2.4)
-    out = out_dir / "executable_runtime.png"
+    out = out_dir / output_name
     save_plot(fig, out)
     return out
 
