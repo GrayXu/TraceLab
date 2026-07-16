@@ -285,7 +285,7 @@ def _label_node(node, heredoc: bool) -> tuple[str | None, str | None]:
     return lbl, None
 
 
-_SKELETON_OPERATORS = {"|", "&&", "||"}
+_SKELETON_OPERATORS = {"|", "&&", "||", "&"}
 _SKELETON_COMPLEX_NODES = {"command_substitution", "process_substitution"}
 
 
@@ -300,21 +300,21 @@ def _contains_complex_skeleton_node(node) -> bool:
 def _skeleton_node(node, heredoc: bool = False) -> str | None:
     """Render a deliberately small executable/operator grammar, or reject the whole structure.
 
-    Supported grammar: normalized commands; pipelines (``|``); conditional lists (``&&``/``||``);
-    semicolon/newline sequences (canonicalized to ``;``); and loops (collapsed to ``<loops>``).
-    If/case statements, functions, subshells, background jobs, command substitutions, and
-    unresolved executable names return ``None``.
+    Supported grammar: normalized commands; ``|``/``&&``/``||``/``&``; semicolon/newline sequences
+    (canonicalized to ``;``); loops and complex structures collapsed to reserved ``<...>`` tokens;
+    and ``!`` negation. Only a structurally invalid node returns ``None``.
     """
     if node.type == "program":
         children = [child for child in node.children if child.type != "comment"]
         if not children:
             return None
-        statements: list[str] = []
+        parts: list[str] = []
         expect_statement = True
         for child in children:
-            if child.type == ";":
+            if child.type in {";", "&"}:
                 if expect_statement:
                     return None
+                parts.append(child.type)
                 expect_statement = True
                 continue
             if not child.is_named:
@@ -324,12 +324,35 @@ def _skeleton_node(node, heredoc: bool = False) -> str | None:
             part = _skeleton_node(child, heredoc)
             if part is None:
                 return None
-            statements.append(part)
+            if not expect_statement:
+                parts.append(";")
+            parts.append(part)
             expect_statement = False
-        return " ; ".join(statements)
+        if parts[-1] == ";":
+            parts.pop()  # a trailing semicolon carries no additional structure
+        return " ".join(parts) if parts else None
 
     if node.type in {"for_statement", "while_statement"}:
         return "<loops>"
+
+    if node.type in {"if_statement", "case_statement"}:
+        return "<conditional>"
+
+    if node.type == "function_definition":
+        return "<function>"
+
+    if node.type in {"subshell", "compound_statement"}:
+        return "<subshell>"
+
+    if node.type in {"variable_assignment", "declaration_command"}:
+        return "<assign>"
+
+    if node.type == "negated_command":
+        children = [child for child in node.children if child.is_named]
+        if len(children) != 1:
+            return None
+        part = _skeleton_node(children[0], heredoc)
+        return f"! {part}" if part is not None else None
 
     if node.type == "redirected_statement":
         body = node.child_by_field_name("body")
@@ -339,13 +362,15 @@ def _skeleton_node(node, heredoc: bool = False) -> str | None:
         return _skeleton_node(body, heredoc or has_heredoc)
 
     if node.type == "command":
-        if _contains_complex_skeleton_node(node):
-            return None
+        has_substitution = _contains_complex_skeleton_node(node)
         label, reason = _label_node(node, heredoc)
-        return label if label is not None and reason is None else None
+        if label is not None and reason is None:
+            suffix = " <substitution>" if has_substitution else ""
+            return label + suffix
+        return "<substitution>" if has_substitution else "<unknown>"
 
     if node.type not in {"pipeline", "list"}:
-        return None
+        return "<unknown>"
 
     parts: list[str] = []
     for child in node.children:
@@ -395,6 +420,7 @@ def extract(raw: Any) -> dict[str, Any]:
         else:
             out["not_sure"] = 1
             out["reason"] = f"argv-{st}"
+            out["command_skeleton"] = "<unknown>"
         return out
 
     s = val if isinstance(val, str) else ""

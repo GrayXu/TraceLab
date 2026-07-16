@@ -42,7 +42,7 @@ One JSON row per shell/command call — the single source of truth for any execu
 | `trace_key`, `session_id`, `round_index`, `tool_index`, `tool_call_id` | call identity |
 | `tool_name` | `Bash` \| `exec_command` \| `shell` \| `shell_command` |
 | `command` | the full raw command text |
-| `command_skeleton` | normalized executables joined by `\|`, `&&`, `\|\|`, or `;`; loops become `<loops>`; `""` if unsupported |
+| `command_skeleton` | privacy-oriented executable/operator form with reserved `<...>` structure tokens; `""` only if unparseable/empty |
 | `latency_ms` | per-call latency (`tool_internal_latency_ms` else `tool_wall_latency_ms`); `null` if none |
 | `executables` | list, one entry per occurrence (`["git","git"]`); `[]` if opaque |
 | `kinds` | aligned with `executables`: `"tool"` \| `"plumbing"` |
@@ -56,16 +56,17 @@ with `source == "deterministic"` and `n_exe == 1` and a latency value (0-second 
 latency with the observable full-command duration reconstructed from the normalized continuation
 links.
 
-`command_skeleton` deliberately implements a smaller grammar than the executable collector. It
-strips arguments and transparent wrappers while retaining normalized executable names and
-`|`/`&&`/`||`/`;`: `git status && grep x file | head -10` → `git && grep | head`. Explicit
-semicolons and top-level newline-separated statements both canonicalize to `;`; any `for`, `while`,
-or `until` loop becomes the literal `<loops>` placeholder. A conditional, function, subshell,
-command/process substitution, background job, or unresolved executable still makes the entire
-skeleton `""`. The ordinary `executables[]` list keeps individual labels it can safely recover from
-those complex commands. In the current merged trace, 308,837 of 335,640 calls (92.01%) have a
-non-empty skeleton; 44,207 contain a canonical `;` sequence and 7,624 contain `<loops>` (operator
-categories can overlap).
+`command_skeleton` strips arguments and transparent wrappers while retaining normalized executable
+names and `|`/`&&`/`||`/`;`/`&`/`!`: `git status && grep x file | head -10` →
+`git && grep | head`. Explicit semicolons and top-level newlines both canonicalize to `;`. Complex
+syntax becomes a reserved structural token instead of leaking its body: `<loops>`, `<substitution>`,
+`<assign>`, `<conditional>`, `<subshell>`, `<unknown>`, or `<function>`. For example,
+`X=foo; echo "$(git status)"` → `<assign> ; echo <substitution>`. The ordinary `executables[]` list
+still keeps individual labels it can safely recover from complex commands.
+
+In the current merged trace, 334,911 of 335,640 calls (99.7828%) have a non-empty skeleton. Only 729
+remain empty: 665 parse errors, 23 HTML-escaped inputs, 20 empty/undecodable inputs, and 21
+comment-only or otherwise structureless inputs. Placeholder/operator categories overlap.
 
 ## Code structure
 
@@ -142,8 +143,8 @@ publish a new project-specific name.
 
 The private `command_skeleton` currently contains unsanitized normalized executable names. When it
 is added to the public trace, each executable token must pass through the same frozen whitelist and
-corpus-level `custom_N` mapping; the operators and `<loops>` placeholder can be retained as-is. An
-empty skeleton remains empty.
+corpus-level `custom_N` mapping. Operators and every reserved `<...>` structural token are retained
+as-is. An empty skeleton remains empty.
 
 The current proposal retains 351 of 1,044 unique names and covers 99.04% of all executable
 occurrences. The remaining 693 names receive stable-within-this-mapping labels in inventory order:
