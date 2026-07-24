@@ -72,10 +72,10 @@ uv run python artifacts/prefix_cache/human_idle_cache_counterfactual/analyze.py 
 ### human_idle_cache_counterfactual.md
 
 From this consumer perspective, if user-initiated steps retained their prefix cache across human
-thinking time, append-prefill would drop from **4.54B** to **2.00B** tokens in the merged trace: a
-**2.54B-token** reduction, or **55.9%** of observed append tokens for these steps.
+thinking time, the user-initiated steps contain **5.01B** observed append tokens and **2.30B** after
+retained-cache accounting: a **2.70B-token** reduction, or **54.0%** of their observed append.
 
-With `pricing.json` prices as of **2026-07**, the estimated final cost falls from **$78,503** to
-**$64,924**, saving **$13,580** (**17.3%**) over priced rounds. The split is **2.03B** fewer append
-tokens and **$11,797** saved for Claude, and **506.1M** fewer append tokens and **$1,782** saved for
-Codex. Dollar totals price **98.52%** of rounds; token reductions include all rounds.
+With `pricing.json` prices as of **2026-07**, the observed cost is **$90,888** and the retained-cache
+estimate is **$76,556**, a **$14,333** (**15.8%**) saving over priced rounds. The split is **2.14B**
+fewer append tokens and **$12,427** saved for Claude, and **565.0M** fewer append tokens and
+**$1,906** saved for Codex. Token reductions include all rounds.

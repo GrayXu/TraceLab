@@ -75,10 +75,10 @@ The PNG is self-contained — it embeds this README, the CSV, and the plotting c
 
 Tool usage is steeply concentrated: command execution leads both providers, trailed by file
 operations like Read and Edit (the paper's `fig:tool_call_counts`). Claude leans on `Bash`
-(the clipped leader, annotated with its true 67k calls), then `Read` (32k) and `Edit` (18k);
-Codex leans on `exec_command` (187k), then `write_stdin` (63k) and `apply_patch` (24k). The
-concentration is extreme — across the 54 distinct Claude tools and 31 Codex tools, the top three
-account for over 80% of Claude's calls and ~95% of Codex's. Everything past the head is a thin
+(the clipped leader, annotated with its true 159k calls), then `Read` (64k) and `Edit` (37k);
+Codex leans on `exec_command` (252k), then `write_stdin` (76k) and `exec` (47k). The
+concentration is extreme: the top three account for 85.0% of Claude's calls and 85.3% of Codex's.
+Everything past the head is a thin
 long tail of specialized and MCP tools, collapsed into the `Other` bar. The red error overlay
 flags reliability outliers — Claude's `ExitPlanMode` and `AskUserQuestion` fail far more often
 than the high-volume primitives — with exact per-tool `error_rate` in the CSV.

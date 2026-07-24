@@ -95,9 +95,9 @@ The PNGs are self-contained — they embed this README, the CSVs, and the plotti
 ### prefix_append_distribution.png
 
 The two histograms sit roughly **two orders of magnitude apart**. The **prefix** (cached) curve
-piles up far to the right — a median step replays about 126k cached tokens for Claude and 116k for
-Codex — while the **append** curve is centered down in the low hundreds (median ~857 tokens for
-Claude, ~886 for Codex), the only slice a step is freshly charged for. The legend's `p50`/`p90`
+piles up far to the right — a median step replays about 141k cached tokens for Claude and 120k for
+Codex — while the **append** curve is centered down near one thousand tokens (median 992 tokens for
+Claude, 1,086 for Codex), the only slice a step is freshly charged for. The legend's `p50`/`p90`
 quantify the gap, exact over all steps. The takeaway is the central fact of a coding agent's input:
 each step overwhelmingly *replays* accumulated context and pays for only a thin new margin on top.
 
@@ -105,7 +105,7 @@ each step overwhelmingly *replays* accumulated context and pays for only a thin 
 
 The CDFs make the separation explicit. The prefix curve rises late and keeps climbing into the
 hundreds-of-thousands range — Claude's longer context window stretches its prefix tail to a p99 near
-918k tokens, while Codex saturates closer to 231k — whereas the append curve saturates early because
+920k tokens, while Codex saturates closer to 238k — whereas the append curve saturates early because
 most appends are tiny. Read where each curve crosses 50%/90% to compare a provider's typical input
 cost against its tail, and note that the two providers diverge mainly in the prefix tail, not the
 append body.

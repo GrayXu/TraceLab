@@ -11,7 +11,7 @@ trace 中的每一行是一个智能体步骤。本实验把三个单步 token �
 - **前缀** 是该步骤的 `prefix_tokens`（输入中的缓存 / 缓存读取部分）。
 - **调整后追加** = `newly_append_tokens − prior-step output`，仅在*上一个*步骤是 Claude 或 Codex `gpt-5.5`（即上一次输出会被回送进下一次输入的那些提供商）时才应用。用于减法的 Codex 输出代理（output proxy）是 *visible* 输出（`output_tokens − reasoning_output_tokens`）；结果在 0 处截断。对仅在**同一会话内的相邻步骤（adjacent steps in the same session）**之间形成（`round_index` 恰好相差 1）。
 - **输出** 是每一行已解析调用的真实 `output_tokens`——它*不*配对、也不调整，因此它的纺锤覆盖所有步骤，而非仅配对的那些。
-- **排序。** 行按文件顺序（DB 的摄入序号）消费，按 `session_id` 分组，并在会话内以 `round_index` 排序、以摄入序号作为并列时的 tie-break（`ORDER BY round_index, ingest_seq`）——复现旧版在行序 JSONL 上的稳定排序。纺锤统计量（直方图密度、分位数、min/max）与顺序无关，因此无论会话迭代顺序如何，逐 CSV 的输出都逐字节一致。
+- **排序。** 行按文件顺序（DB 的摄入序号）消费，按 `session_id` 分组，并在会话内以 `round_index` 排序、以摄入序号作为并列时的 tie-break（`ORDER BY round_index, ingest_seq`），从而保持行序 JSONL 的稳定排序。纺锤统计量（直方图密度、分位数、min/max）与顺序无关，因此无论会话迭代顺序如何，逐 CSV 的输出都逐字节一致。
 - **轴**是一个压缩二进制 token 刻度，`log2(tokens + 32) − log2(32)`，使得稠密的 0–32 token 区域不会在视觉上被过度拉伸。分位数在全量数据上使用线性插值（不抽样）。
 
 ## 代码结构

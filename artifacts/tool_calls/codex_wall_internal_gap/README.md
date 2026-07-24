@@ -57,12 +57,11 @@ Standard `trace_db` CLI (`--db` | `-i/--input` | `-o/--output-dir`). Useful flag
 
 ## Headline numbers (public trace)
 
-- Across **253k** both-timed Codex calls, end-to-end time is **418.1h** vs **341.5h**
-  internal — a **77.8h** residual gap (~19% of E2E time sits outside command execution).
-- `exec_command` carries most of it: **184k** calls, **64.1h** residual (its internal
-  time is only 33.8h of 97.8h E2E).
-- Residuals are usually tiny but heavy-tailed: median **0.13s**, P90 **0.24s**, P99
-  **10.0s** over all timed calls.
+- Across **338k** both-timed Codex calls, end-to-end time is **598.6h** and internal time is
+  **470.1h**, leaving a **129.7h** residual gap (21.7% of E2E).
+- `exec_command` carries most of it: **248k** calls and **108.7h** residual.
+- Residuals are usually tiny but heavy-tailed: median **0.16s**, P90 **0.31s**, P99
+  **10.2s** over all timed calls.
 
 ## SyFI result analysis
 
@@ -70,13 +69,13 @@ Standard `trace_db` CLI (`--db` | `-i/--input` | `-o/--output-dir`). Useful flag
 
 Codex's observed end-to-end tool latency substantially exceeds the runner's internal execution
 time, so a non-trivial slice of tool wall-time is not actual command work (the paper's
-`tab:codex_tool_e2e_internal`). Over the 253k both-timed calls — 87.3% of Codex tool calls — E2E
-sums to 418.1h against 341.5h internal, leaving a 77.8h residual (~18.6% of E2E). `exec_command`
-dominates that gap with 64.1h of residual (internal 33.8h out of 97.8h E2E), consistent with shell
+`tab:codex_tool_e2e_internal`). The 338k both-timed calls sum to 598.6h E2E and 470.1h internal,
+leaving a 129.7h residual (~21.7% of E2E). `exec_command`
+dominates that gap with 108.7h of residual (internal 53.6h out of 162.2h E2E), consistent with shell
 commands being the ones most likely to stall on permission/auto-approval. The residual is mostly
-made of many tiny gaps plus a long tail: the average is just 1.11s and P50/P90 stay small
-(0.13s/0.24s), but P99 reaches 10.0s. `write_stdin` is the opposite shape — huge E2E (314.6h) that
-is almost all internal, leaving only 11.7h residual — confirming the overhead concentrates in
-command launches, not in long-running interactive sessions. Read this residual as an upper bound on
-client-side waiting around the call (approval, shell startup, scheduling), not a direct approval
-measurement.
+made of many tiny gaps plus a long tail: the average is 1.38s and P50/P90 stay small
+(0.16s/0.31s), while P99 reaches 10.2s. `write_stdin` is the opposite shape — huge E2E (429.3h)
+that is almost all internal, leaving only 18.7h residual — confirming the overhead concentrates
+in command launches, not in long-running interactive sessions. Read this residual as an upper
+bound on client-side waiting around the call (approval, shell startup, scheduling), not a direct
+approval measurement.

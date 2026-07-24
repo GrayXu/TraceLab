@@ -43,4 +43,4 @@ uv run python artifacts/llm_generation/token_length_distribution/analyze.py --db
 
 ### token_length_distribution.md
 
-这是喂给 `tab:token_length_distribution` 的唯一一张表，它把工作负载的核心不对称性具体化了：每一步里，输入巨大而输出微小。在**前缀**一侧，Claude 的中位步骤要重放 126k 个缓存 token，Codex 为 116k——而由于 Claude 的上下文窗口更长，它的前缀会一直延伸到 918k 的 p99，而 Codex 在 231k 附近就饱和了。**追加**一侧要小两个数量级，Claude 中位仅 857 个新 token，Codex 886 个，这才是一步真正会被计费的那一薄片。**输出**更小：Claude 中位 252 个 token，Codex 184 个，p90 在 1.7k 以下，连 p99 也只停留在低千位区间。输出如此之短与直觉相悖，但这正是工具循环的结果——一次完整回复被拆分到约 8 个工具调用步骤里，因此每一次单独的生成都很简短，往往只是吐出下一个工具调用的参数。
+这是喂给 `tab:token_length_distribution` 的唯一一张表，它把工作负载的核心不对称性具体化了：每一步里，输入巨大而输出微小。在**前缀**一侧，Claude 的中位步骤要重放 141k 个缓存 token，Codex 为 120k——而由于 Claude 的上下文窗口更长，它的前缀会一直延伸到 920k 的 p99，而 Codex 在 238k 附近就饱和了。**追加**一侧要小两个数量级，Claude 中位仅 992 个新 token，Codex 1,086 个，这才是一步真正会被计费的那一薄片。**输出**更小：Claude 中位 354 个 token，Codex 188 个，p90 约为或低于 2k，连 p99 也只停留在低千位区间。输出如此之短与直觉相悖，但这正是工具循环的结果——一次完整回复平均被拆分到 6.7 个工具调用步骤里，因此每一次单独的生成都很简短，往往只是吐出下一个工具调用的参数。

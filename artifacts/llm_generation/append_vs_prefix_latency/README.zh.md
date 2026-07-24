@@ -44,7 +44,7 @@ uv run python artifacts/llm_generation/append_vs_prefix_latency/analyze.py
 
 ### append_vs_prefix_bucket_effects.png
 
-效应量视图，每个 `(provider, model, segment kind, total-token bin, output-token bin)` 匹配桶对应一个点。结论是 **append-heavy 步骤更慢，但这两类并不能干净分离**：按对加权的 `P(append-heavy 比已匹配的 prefix-heavy 行更慢)` 为 75.2%（Cliff's delta 0.505），且 append-heavy 在 752 个桶中的 643 个（85.5%）里是较慢的中位数，然而桶级延迟比值的中位数只有 **1.17x**。最大、最干净的那些桶（长上下文、短输出的 Codex `tool_result→tool_call`）将比值推高至 1.5–2.5x，主导率达 85–94%，因此当追加远超过微小输出时效应是真实存在的——但*典型*桶的差距并不大。
+效应量视图，每个 `(provider, model, segment kind, total-token bin, output-token bin)` 匹配桶对应一个点。结论是 **append-heavy 步骤更慢，但这两类并不能干净分离**：按对加权的 `P(append-heavy 比已匹配的 prefix-heavy 行更慢)` 为 69.0%（Cliff's delta 0.381），且 append-heavy 在 1,218 个桶中的 983 个（80.7%）里是较慢的中位数，然而桶级延迟比值的中位数只有 **1.13x**。最大、最干净的那些桶（长上下文、短输出的 Codex `tool_result→tool_call`）比值约为 1.5–1.9x，因此当追加远超过微小输出时效应是真实存在的——但*典型*桶的差距并不大。
 
 ### append_vs_prefix_normalized_overlap.png
 

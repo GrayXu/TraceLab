@@ -84,11 +84,11 @@ The PNG is self-contained — it embeds this README, the CSV, and the plotting c
 Aggregate tool-execution time is dominated by a handful of tool kinds rather than spread across the
 vocabulary. The ranking is by **summed** latency (with `n=` call counts annotated), which separates
 two routes to the top: being called constantly versus being individually slow. Claude's `Bash`
-leads everything at ~771h over 67k calls (~46% of all tool time) — high volume *and* a long tail —
-followed by Codex's `write_stdin` at ~317h. The third bar exposes the other regime: Claude's
-`AskUserQuestion` reaches ~243h on only 784 calls, because each one blocks waiting on the human
-(avg ~19 min/call); `Agent` (~55h) and `ExitPlanMode` (~51h) are similar slow-but-rare blockers. By
-contrast Codex's `exec_command`, the single most-called tool at 187k calls, totals only ~51h
+leads everything at ~1,247h over 159k calls — high volume *and* a long tail —
+followed by Claude's `AskUserQuestion` at ~664h and Codex's `write_stdin` at ~425h. The next bars
+expose the slow-but-rare regime: `ExitPlanMode` totals ~239h over 672 calls and `Agent` ~80h over
+2,546 calls. By contrast Codex's `exec_command`, the single most-called tool at 252k calls, totals
+~72h
 because each call is cheap. Because latency is additive over parallel calls these are attributed
 work, not wall-clock session time; the CSV (`latency_share`, `avg_latency_ms`) has the exact
 figures, including the tail collapsed into `Other`.

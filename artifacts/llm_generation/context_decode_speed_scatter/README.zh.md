@@ -44,4 +44,4 @@ uv run python artifacts/llm_generation/context_decode_speed_scatter/plot.py \
 
 ### context_decode_speed_scatter.png
 
-这组堆叠面板（即论文中的 `fig:context_decode_speed`）将 trace 观测到的计时数据相对于总输入上下文绘制，并在单步点云之上叠加分箱 p25/median/p90 趋势。核心结论是：上下文越长，生成越慢，但在每个上下文长度上单步散布都很宽。Claude 的分箱归一化解码速度中位数在其大部分区间内保持在 50–54 tokens/s 附近，仅在最长上下文处下滑，在约 740k 输入 token 处降至约 43 tokens/s。Codex 则呈现更明显的斜率：其分箱中位数从 12k–23k 输入 token 处的 ~43 tokens/s 降至 185k 附近的 ~29 tokens/s。仅 Codex 的面板将各组成部分分离开来——纯解码速度中位数从 12k 处的 ~74 tokens/s 降至 185k 附近的 ~55 tokens/s，而残余 TTFT 中位数在同一区间内从 ~1.5s 攀升至 ~2.9s。因此，单凭上下文长度并不能解释这些方差；调度、模型版本、输出形态以及后端状态显然也都有贡献。
+这组堆叠面板（即论文中的 `fig:context_decode_speed`）将 trace 观测到的计时数据相对于总输入上下文绘制，并在单步点云之上叠加分箱 p25/median/p90 趋势。核心结论是：上下文越长，生成越慢，但在每个上下文长度上单步散布都很宽。Claude 的分箱归一化解码速度中位数在其大部分区间内保持在 54–58 tokens/s 附近，仅在最长上下文处下滑，在约 740k 输入 token 处约为 48 tokens/s。Codex 则呈现更明显的斜率：其分箱中位数在 12k–23k 输入 token 处约为 40–41 tokens/s，在 185k 附近约为 28 tokens/s。仅 Codex 的面板将各组成部分分离开来——纯解码速度中位数在 12k 处约为 72 tokens/s，在 185k 附近约为 55 tokens/s，而残余 TTFT 中位数在同一区间内约为 1.5s 和 2.8s。因此，单凭上下文长度并不能解释这些方差；调度、模型版本、输出形态以及后端状态显然也都有贡献。

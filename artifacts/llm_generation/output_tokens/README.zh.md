@@ -51,4 +51,4 @@ uv run python artifacts/llm_generation/output_tokens/plot.py -i trace/sample.jso
 
 ### output_tokens_distribution.png
 
-完整的每步输出分布（即论文的 `fig:output_tokens`）：两个提供商都堆积在低百位 token 区间——Claude 中位 252，Codex 184——而曲线强烈**右偏**，只有一条细尾的长生成触及各组的 `max`。如此短的输出是工具循环的预期结果：一次完整回复被切成约 8 个工具调用步骤，因此大多数步骤只吐出下一个调用的参数，而非一段长回答。Codex 还多出一个鲜明的第二特征——一处非常短（约 40-token）生成的显著尖峰——这源于它大量使用 `write_stdin` 来等待一个正在运行的命令，或发送 `Ctrl+C` 去中断它。请把两条曲线并排看，而不要把某一个数字叠加比较：Codex 把推理 token 折进 `output_tokens` 而 Claude 不会，因此 Codex 更重的尾部可能反映的是推理而非更多可见输出，而 `<unknown-*>` 桶（若存在）标记的是来源缺失的步骤。
+完整的每步输出分布（即论文的 `fig:output_tokens`）：两个提供商都堆积在低百位 token 区间——Claude 中位 354，Codex 188——而曲线强烈**右偏**，只有一条细尾的长生成触及各组的 `max`。如此短的输出是工具循环的预期结果：一次完整回复平均包含 6.7 个工具调用步骤，因此大多数步骤只吐出下一个调用的参数，而非一段长回答。Codex 还多出一个鲜明的第二特征——一处非常短（约 40-token）生成的显著尖峰——这源于它大量使用 `write_stdin` 来等待一个正在运行的命令，或发送 `Ctrl+C` 去中断它。请分别按各提供商的 token 口径解读曲线：Codex 把推理 token 折进 `output_tokens`，Claude 则不包含，因此 Codex 更重的尾部可能反映的是推理而非更多可见输出；`<unknown-*>` 桶（若存在）标记来源缺失的步骤。

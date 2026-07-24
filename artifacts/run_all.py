@@ -92,8 +92,12 @@ EXPERIMENTS: list[Experiment] = [
     # shared foundation: materialize the trace DuckDB once; db-backed experiments depend on it ----
     Experiment("trace_db", BUILD_DB_NAME, TRACE_DB_SCRIPT, "db-build"),
     # llm_generation -------------------------------------------------------
+    Experiment("llm_generation", "token_length_distribution", "llm_generation/token_length_distribution/analyze.py", "direct", "db", after=BUILD_DB_NAME),
     Experiment("llm_generation", "prefix_append_distribution", "llm_generation/prefix_append_distribution/plot.py", "-i", "db", after=BUILD_DB_NAME),
+    Experiment("llm_generation", "append_by_prefix_bin", "llm_generation/append_by_prefix_bin/analyze.py", "direct", "db", after=BUILD_DB_NAME),
     Experiment("llm_generation", "output_tokens", "llm_generation/output_tokens/plot.py", "-i", "db", after=BUILD_DB_NAME),
+    Experiment("llm_generation", "output_attribution_schematic", "llm_generation/output_attribution_schematic/plot.py", "none"),
+    Experiment("llm_generation", "context_decode_speed_scatter", "llm_generation/context_decode_speed_scatter/plot.py", "direct", "db", after=BUILD_DB_NAME),
     Experiment("llm_generation", "generation_time_cdf", "llm_generation/generation_time_cdf/plot.py", "-i", "db", after=BUILD_DB_NAME),
     Experiment("llm_generation", "adjusted_prefix_append", "llm_generation/adjusted_prefix_append/plot.py", "--input", "db", after=BUILD_DB_NAME),
     Experiment("llm_generation", "output_append_assignment", "llm_generation/output_append_assignment/plot.py", "--input", "db", after=BUILD_DB_NAME),
@@ -142,6 +146,9 @@ EXPERIMENTS: list[Experiment] = [
     Experiment("trace_facts", "overview_summary", "trace_facts/overview_summary/analyze.py", "stdout", "db", after=BUILD_DB_NAME),
     Experiment("trace_facts", "csv_export", "trace_facts/csv_export/convert.py", "io", "db", after=BUILD_DB_NAME),
     # session --------------------------------------------------------------
+    Experiment("session", "session_internal_counts", "session/session_internal_counts/analyze.py", "direct", "db", after=BUILD_DB_NAME),
+    Experiment("session", "session_compaction_counts", "session/session_compaction_counts/analyze.py", "direct", "db", after=BUILD_DB_NAME),
+    Experiment("session", "session_timing_distribution", "session/session_timing_distribution/analyze.py", "direct", "db", after=BUILD_DB_NAME),
     Experiment("session", "session_token_steps", "session/session_token_steps/plot.py", "-i", "db", after=BUILD_DB_NAME),
     Experiment("session", "total_input_growth", "session/total_input_growth/analyze.py", "-i", "db", after=BUILD_DB_NAME),
     Experiment("session", "session_cost_distribution", "session/session_cost_distribution/analyze.py", "-i", "db", after=BUILD_DB_NAME),

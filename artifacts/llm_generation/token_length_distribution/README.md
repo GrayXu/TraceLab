@@ -54,11 +54,11 @@ The per-provider stats are also printed to stdout.
 
 This is the single table feeding `tab:token_length_distribution`, and it makes the central asymmetry
 of the workload concrete: per step, inputs are huge and outputs are tiny. On the **prefix** side a
-median step replays 126k cached tokens for Claude and 116k for Codex — and because Claude's context
-window is longer, its prefix stretches to a p99 of 918k while Codex saturates near 231k. The
-**append** side is two orders of magnitude smaller, a median of just 857 fresh tokens for Claude and
-886 for Codex, the only slice a step is actually charged for. **Output** is smaller still: a median
-of 252 tokens for Claude and 184 for Codex, with the p90 under 1.7k and even the p99 staying in the
+median step replays 141k cached tokens for Claude and 120k for Codex — and because Claude's context
+window is longer, its prefix stretches to a p99 of 920k while Codex saturates near 238k. The
+**append** side is two orders of magnitude smaller, a median of just 992 fresh tokens for Claude and
+1,086 for Codex, the only slice a step is actually charged for. **Output** is smaller still: a median
+of 354 tokens for Claude and 188 for Codex, with the p90 near or below 2k and even the p99 staying in the
 low thousands. That outputs run so short is counterintuitive but follows from the tool loop — a full
-response is split across ~8 tool-call steps, so each individual generation is brief and often just
+response is split across 6.7 tool-call steps on average, so each individual generation is brief and often just
 emits the next tool call's arguments.

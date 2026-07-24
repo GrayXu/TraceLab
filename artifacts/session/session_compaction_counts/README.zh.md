@@ -39,11 +39,11 @@ uv run python artifacts/session/session_compaction_counts/analyze.py \
 
 ## 关键数字（公开数据，默认口径）
 
-- 在 **1,630** 次 major reduction（≥64k 下降）中，**1,519** 次（93.2%）符合压缩资格。
-- 4,265 个会话中有 **9.7%** 经历了至少一次压缩。
-- 压倒性地为**工具触发**（86.5%，循环中途），而非用户触发。
-- 在 **Codex** 中远比 **Claude** 常见（Codex 占会话的 18.4%，1,235 个事件；Claude 占 4.5%，284 个）。
-- 在确实发生压缩的会话中，均值为 3.7，且尾部很长（Codex p99 = 34）。
+- 在 **2,750** 次 major reduction（≥64k 下降）中，**2,520** 次（91.6%）符合压缩资格。
+- 8,058 个会话中有 **8.8%** 经历了至少一次压缩。
+- 主要为**工具触发**（79.2%，循环中途），而非用户触发。
+- 在 **Codex** 中远比 **Claude** 常见（Codex 占会话的 17.4%，1,984 个事件；Claude 占 4.4%，536 个）。
+- 在确实发生压缩的会话中，均值为 3.5，且尾部很长（Codex p99 = 37）。
 
 无图。
 
@@ -52,5 +52,5 @@ uv run python artifacts/session/session_compaction_counts/analyze.py \
 ### session_compaction_counts.md
 
 大多数大幅上下文下降都是真正的压缩，且它们对 Codex 的冲击远大于 Claude（论文的
-`tab:session_compaction`）。在 major（≥64k）reduction 中，Claude 有 **284/324** 符合资格，Codex 有
-**1,235/1,306**——合计 1,630 中的 1,519——所以这套接近上限 + 恢复缓慢的结构性检验很少误报。压缩在单个会话中并不常见，但按提供商极不均衡：只有 **4.5%** 的 Claude 会话曾发生压缩，而 Codex 则为 **18.4%**，且在确实发生的会话中，Codex 的均值与尾部都大于 Claude（Codex avg 4.23，p99 = 34；Claude avg 2.37，p99 = 12）。触发器划分呼应了自主性这一发现：Codex 的压缩压倒性地为**工具触发**（91.9%，循环中途的自动压缩），而 Claude 的则更为均衡（63.0% 工具 / 37.0% 用户）。
+`tab:session_compaction`）。在 major（≥64k）reduction 中，Claude 有 **536/669** 符合资格，Codex 有
+**1,984/2,081**——合计 2,750 中的 2,520——所以这套接近上限 + 恢复缓慢的结构性检验很少误报。压缩在单个会话中并不常见，但按提供商极不均衡：只有 **4.4%** 的 Claude 会话曾发生压缩，而 Codex 则为 **17.4%**，且在确实发生的会话中，Codex 的均值与尾部都大于 Claude（Codex avg 4.16，p99 = 37；Claude avg 2.28，p99 = 12）。触发器划分呼应了自主性这一发现：Codex 的压缩压倒性地为**工具触发**（82.5%，循环中途的自动压缩），而 Claude 的则更为均衡（67.0% 工具 / 33.0% 用户）。

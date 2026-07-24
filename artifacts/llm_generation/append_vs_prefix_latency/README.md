@@ -61,17 +61,17 @@ Each PNG embeds this README, the CSVs, and `analyze.py`. Unpack with
 
 The effect-size view, one point per matched bucket of `(provider, model, segment kind, total-token
 bin, output-token bin)`. The verdict is **append-heavy steps are slower, but the two classes do not
-separate cleanly**: pair-weighted `P(append-heavy slower than a matched prefix-heavy row)` is 75.2%
-(Cliff's delta 0.505) and append-heavy is the slower median in 643 of 752 buckets (85.5%), yet the
-median bucket-level latency ratio is only **1.17x**. The largest, cleanest buckets (long context,
-short output Codex `tool_result→tool_call`) push ratios to 1.5–2.5x with 85–94% dominance, so the
+separate cleanly**: pair-weighted `P(append-heavy slower than a matched prefix-heavy row)` is 69.0%
+(Cliff's delta 0.381) and append-heavy is the slower median in 983 of 1,218 buckets (80.7%), yet the
+median bucket-level latency ratio is only **1.13x**. The largest, cleanest buckets (long context,
+short output Codex `tool_result→tool_call`) reach ratios around 1.5–1.9x with strong dominance, so the
 effect is real where append dwarfs a tiny output — but the *typical* bucket gap is modest.
 
 ### append_vs_prefix_normalized_overlap.png
 
 The separation-quality view: each row's duration is normalized by its bucket's prefix-heavy median,
 then append-heavy and prefix-heavy rows are overlaid. They **overlap heavily** — the best global
-normalized-duration threshold (1.04x) reaches only 61.7% balanced accuracy, well below the 75% bar for
+normalized-duration threshold reaches only 58.9% balanced accuracy, well below the 75% bar for
 a clean split. So the strong "append-heavy rows form a separable slow class" hypothesis is rejected:
 append share shifts the distribution but does not cleanly classify a row's latency. As an
 observational trace, matching controls token lengths and model/segment identity but not queueing,

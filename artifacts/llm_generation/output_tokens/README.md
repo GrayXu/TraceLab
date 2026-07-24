@@ -12,18 +12,17 @@ provider:model), on a base-2 log token axis, and writes per-group quantiles.
 Method and assumptions:
 
 - **What counts.** Every step whose `output_tokens` is non-null and `>= 0` contributes one value to
-  its group (and to the synthetic `all` group). This matches the old loader's `allow_zero` numeric
+  its group (and to the synthetic `all` group). This follows the JSONL loader's `allow_zero` numeric
   rule — zero-output steps are kept, negatives (never observed) are dropped.
 - **Provider caveat.** For **Codex**, `output_tokens` *includes* reasoning tokens; for **Claude** it
   is the message-level output count. The distributions are therefore not strictly like-for-like
   across providers — read each provider on its own terms.
 - **Exact, not sampled.** The distribution, percentiles, and histogram are computed over **every**
-  observation. The pre-DuckDB loader reservoir-sampled at 200k values per group to bound memory while
+  observation. The JSONL loader reservoir-sampled at 200k values per group to bound memory while
   parsing JSON; querying the materialized DuckDB removes that constraint, so the stats are now exact.
   The summary CSV's `sampled` column is therefore always `False` and `sample_count` equals the full
-  `count`. (On any trace below the old 200k cap — e.g. `trace/sample.jsonl` — the old path was
-  already exact, so the migration is value-for-value identical there.)
-- **Group fallbacks.** Grouping mirrors the old `group_key()` `"<unknown-provider>"` /
+  `count`. (On any trace below the 200k cap — e.g. `trace/sample.jsonl` — that path is exact.)
+- **Group fallbacks.** Grouping mirrors the JSONL `group_key()` `"<unknown-provider>"` /
   `"<unknown-model>"` fallbacks via SQL `COALESCE`, so missing/empty provider or model values fall
   into an explicit `<unknown-*>` bucket rather than being dropped.
 
@@ -35,8 +34,7 @@ Method and assumptions:
   non-null, non-negative `output_tokens` value with its group label (one SQL `GROUP BY`-free scan)
   and returns `{group_label: MetricStats}` plus an `all` group. No sampling.
 - `MetricStats` — a thin wrapper over the group's full `np.ndarray` of values, exposing exact
-  `count` / `min` / `max` / `mean` and `percentiles(...)` (NumPy linear interpolation, matching the
-  old percentile method).
+  `count` / `min` / `max` / `mean` and `percentiles(...)` (NumPy linear interpolation).
 - `selected_groups(stats, max_groups)` — the plotted groups: everything except `all`, biggest first,
   capped at `--max-groups`.
 - `plot_output_tokens(...)` — renders the stepped histogram on the shared binary token axis
@@ -76,9 +74,9 @@ as compressed text chunks. Unpack with `uv run python artifacts/utils/png_sideca
 ### output_tokens_distribution.png
 
 The full per-step output distribution (the paper's `fig:output_tokens`): both providers pile up in
-the low hundreds of tokens — median 252 for Claude, 184 for Codex — and the curve is strongly
+the low hundreds of tokens — median 354 for Claude, 188 for Codex — and the curve is strongly
 **right-skewed**, with only a thin tail of long generations reaching the per-group `max`. Outputs
-this short are the expected consequence of the tool loop: a full response is cut into ~8 tool-call
+this short are the expected consequence of the tool loop: a full response is cut into 6.7 tool-call
 steps, so most steps emit just the next call's arguments rather than a long answer. Codex adds a
 distinctive second feature — a pronounced spike of very short (~40-token) generations — driven by its
 heavy use of `write_stdin` to wait on a running command or send `Ctrl+C` to interrupt one. Read the

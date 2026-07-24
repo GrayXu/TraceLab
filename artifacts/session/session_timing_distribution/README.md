@@ -59,22 +59,17 @@ uv run python artifacts/session/session_timing_distribution/analyze.py          
 
 ## Headline numbers (public trace)
 
-- **Sessions are mostly idle: human thinking is 92.3% of session wall-clock** (avg 7.6h of an 8.2h
+- **Sessions are mostly idle: human thinking is 91.6% of session wall-clock** (avg 6.8h of a 7.5h
   session; medians are tiny — a single-request session has no inter-request gap). The long idle
-  tail (session p99 ≈ 206h) is what pushes prompt prefixes past the cache TTL.
-- **Positive human input waits match the CDF: p50 1.4 min, p90 20.6 min, p99 13.9h**. This is the
-  event-level view; it differs from the per-session median because 58.5% of sessions have no
-  positive inter-request human wait.
+  tail (session p99 ≈ 175h) is what pushes prompt prefixes past the cache TTL.
+- **Positive human input waits match the CDF: p50 1.4 min, p90 15.2 min, p99 11.2h**.
 - **Individual LLM/tool distributions match their summaries:** observed generation spans have p50
-  5.7s and p90 22.2s; positive tool effective latencies have p50 0.3s and p90 13.6s.
-- **Within a request, tool execution dominates, not generation: tool 59.8% vs generation 41.0%**
-  of the 2,782.7h of total response time (the two slightly overlap, hence shares can exceed 100%).
-- Avg response time: **4.3 min / request** (p50 38s, p90 6.4 min); avg active work **11.5s
-  generation + 16.8s tool per step**.
+  6.5s and p90 25.9s; positive tool effective latencies have p50 0.3s and p90 13.5s.
+- **Within a request, tool execution dominates, not generation: tool 61.0% vs generation 37.7%.**
+- Avg response time: **3.7 min / request** (p50 26s, p90 5.5 min); avg active work **10.3s
+  generation + 16.7s tool per step**.
 
-The session human share is consistent across providers under the provider-agnostic definition
-(Claude 89.9%, Codex 94.3%) — earlier the trigger-based definition undercounted Codex (81.6%) and
-spilled ~13% into an "Other" residual, which is why that residual row was removed.
+The provider-agnostic definition gives a human share of 90.5% for Claude and 93.1% for Codex.
 
 No figures.
 
@@ -83,14 +78,14 @@ No figures.
 ### session_timing_distribution.md
 
 A coding session is mostly idle, waiting on the human (the paper's `tab:timing_distribution`).
-**Human thinking is 92.3%** of session wall-clock, dwarfing LLM generation (3.3%) and tool execution
-(4.8%); most sessions are short — the median is a single request with no inter-request gap — but a
-heavy tail of sessions left open for hours or days (session p99 elapsed ≈ 206h) accumulates most of
+**Human thinking is 91.6%** of session wall-clock, dwarfing LLM generation (3.2%) and tool execution
+(5.1%); most sessions are short — the median is a single request with no inter-request gap — but a
+heavy tail of sessions left open for hours or days (session p99 elapsed ≈ 175h) accumulates most of
 that idle. Capping each gap at one hour (the cache-relevant budget) drops the human share to 64.3%,
-with generation and tool rising to 14.5% and 21.2%. The individual latency block uses the same
-positive values as the CDF/summary views: human waits have p50 1.4 min and p90 20.6 min, LLM
-generation spans have p50 5.7s and p90 22.2s, and positive tool latencies have p50 0.3s and p90
-13.6s. Inside an individual request the human term vanishes and **tool execution leads generation,
-59.8% vs 41.0%** of the 2,783h of total response time; an average request runs 4.3 min end to end
-(median 38s, p90 6.4 min), and per active step the model spends ~11.5s generating and ~16.8s in
+with generation and tool at 13.6% and 22.1%. The individual latency block uses the same
+positive values as the CDF/summary views: human waits have p50 1.4 min and p90 15.2 min, LLM
+generation spans have p50 6.5s and p90 25.9s, and positive tool latencies have p50 0.3s and p90
+13.5s. Inside an individual request the human term vanishes and **tool execution leads generation,
+61.0% vs 37.7%**; an average request runs 3.7 min end to end
+(median 26s, p90 5.5 min), and per active step the model spends ~10.3s generating and ~16.7s in
 tools.

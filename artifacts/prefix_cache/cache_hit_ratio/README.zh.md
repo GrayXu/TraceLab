@@ -105,7 +105,7 @@ uv run python artifacts/prefix_cache/cache_hit_ratio/analyze.py --no-plots
 ### cache_hit_ratio_table.md
 
 按步骤类型划分的按 token 加权命中率(论文的 `tab:prefix_cache_hit_rate`)。整体来看缓存命中率一致地高:
-两个提供商都将约 **96%** 的 prompt token 由前缀缓存提供(Claude 95.8%,Codex 95.7%)。有趣的拆分在于
-触发来源 —— **用户触发**的步骤命中率要低得多(Claude 86.9%,Codex 78.2%),因为人类的思考时间会把空闲间隔
+两个提供商都将约 **96%** 的 prompt token 由前缀缓存提供(Claude 95.2%,Codex 96.2%)。有趣的拆分在于
+触发来源 —— **用户触发**的步骤命中率要低得多(Claude 82.8%,Codex 84.4%),因为人类的思考时间会把空闲间隔
 拉长到超过驱逐窗口,而 **工具触发**步骤则保持近乎完美(97.9% / 97.2%),因为它们几乎立即续接。
 因此残留的未命中集中在智能体等待人类、而非等待工具的地方。
