@@ -97,12 +97,11 @@ uv run python artifacts/tool_calls/tool_latency_distribution/plot.py --db "$TMPD
 ### tool_latency_by_tool.png
 
 延迟在很大程度上取决于工具类型，而同一类型内部的逐调用离散度很大（论文中的
-`fig:tool_latency_by_tool_top12`）。全 trace 的平均工具调用延迟约为 ~16.8s，但这个
-均值掩盖了巨大的结构差异：快速的文件/编辑原语（`Read` p50 36 ms、`Edit` p50 95 ms、
+`fig:tool_latency_by_tool_top12`）。这个分布包含巨大的结构差异：快速的文件/编辑原语（`Read` p50 27 ms、`Edit` p50 75 ms、
 `Grep`、`apply_patch`）以紧凑的箱聚集在数十至数百毫秒之间，而
 阻塞型工具——`Agent`、`AskUserQuestion`、shell 执行、`wait_agent`/`request_user_input`——
 则带着宽得多的箱位于右侧的数秒至数分钟区间。即便在单个工具内部范围也极大：
-Claude 的 `Bash` 从毫秒到分钟都有，但中位数仍保持在亚秒级（p50 ~409 ms）。
+Claude 的 `Bash` 从毫秒到分钟都有，但中位数仍保持在亚秒级（p50 329 ms）。
 箱是 IQR 加中位数线和第 5/95 分位数 whisker（离群值被抑制）；工具按调用数
 按提供商挑选，再按中位数排序，因此纵向位置读起来就是典型的
 慢速程度。结论是：工具类型引导延迟，但单凭它本身不足以预测延迟。
@@ -139,7 +138,7 @@ Claude 的 `Bash` 从毫秒到分钟都有，但中位数仍保持在亚秒级�
 - 两条曲线在数秒到数分钟区间之前都接近零，随后陡峭攀升——数百
   累积小时中的大头是由分钟级（及更长）区间的调用贡献的，尽管
   这些调用很罕见（如计数 CDF 所示）。
-- Claude 总体累积了更多的工具小时（~1251h vs Codex 的 ~413h），并持续攀升
+- Claude 总体累积了更多的工具小时（~2,293h vs Codex 的 ~796h），并持续攀升
   进入数小时的长尾；Codex 的总量更早趋于平台。由于延迟在
   并行调用上可加，应将这些总量视为归因到的工具工作量，而非已逝的会话墙钟时间。
 ```

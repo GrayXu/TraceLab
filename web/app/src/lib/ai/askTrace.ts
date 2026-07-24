@@ -251,6 +251,7 @@ class AskTraceController {
   private readonly footNote: HTMLElement;
   private readonly histList: HTMLElement;
   private readonly btnHistory: HTMLButtonElement;
+  private readonly publicRounds: string;
 
   private readonly history = new AskHistory();
   private readonly state: ControllerState = {
@@ -276,6 +277,7 @@ class AskTraceController {
 
   constructor(root: { [k: string]: HTMLElement }) {
     this.assistant = root.assistant;
+    this.publicRounds = this.assistant.dataset.publicRounds || '—';
     this.body = root.body;
     this.input = root.input as HTMLTextAreaElement;
     this.send = root.send as HTMLButtonElement;
@@ -493,7 +495,7 @@ class AskTraceController {
 
     if (this.state.source === 'public') {
       this.headSub.textContent = t.publicHead;
-      this.srcCapText.textContent = t.publicCaption;
+      this.srcCapText.textContent = template(t.publicCaption, { rounds: this.publicRounds });
       this.footNote.textContent = t.publicFoot;
     } else if (!this.state.traceAvailable) {
       this.headSub.textContent = t.noTraceHead;

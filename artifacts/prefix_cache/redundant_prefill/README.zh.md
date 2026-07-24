@@ -72,11 +72,11 @@ uv run python artifacts/prefix_cache/redundant_prefill/analyze.py --db "$TMPDIR/
 
 ### redundant_prefill_table.md
 
-新鲜 token 只占全部预填充的一小片(论文的 `tab:redundant_prefill`):仅有 **19.0%** 的被追加 token
-是真正新的(Claude 12.3%,Codex 25.8%),因此剩下约 81% 原则上是可由缓存提供的 —— 这就是与最优状态之间的
+新鲜 token 只占全部预填充的一小片(论文的 `tab:redundant_prefill`):仅有 **16.0%** 的被追加 token
+是真正新的(Claude 9.5%,Codex 28.7%),因此剩下约 84% 原则上是可由缓存提供的 —— 这就是与最优状态之间的
 差距。对新鲜比例取倒数即得到 **预填充放大系数**,即实际预填充的 token 数是一个无驱逐的完美
-缓存所需的多少倍:**整体 5.3x**(Claude 8.1x,Codex 3.9x)。这一拆分高度依赖于触发来源:
-**用户触发**的步骤几乎全是被重新发送的上下文(新鲜仅占其追加的 1.7% Claude / 4.5% Codex ——
+缓存所需的多少倍:**整体 6.3x**(Claude 10.5x,Codex 3.5x)。这一拆分高度依赖于触发来源:
+**用户触发**的步骤几乎全是被重新发送的上下文(新鲜仅占其追加的 1.0% Claude / 9.6% Codex ——
 为一段简短的新 prompt 重新发送了一个很大的窗口),而 **工具触发**步骤则承载了绝大部分真正新的内容
-(27.1% / 40.5%)。Codex 在新鲜比例上始终高于 Claude,这与其更短的重发窗口和更重的工具输出相吻合。
+(27.4% / 40.7%)。Codex 在新鲜比例上始终高于 Claude,这与其更短的重发窗口和更重的工具输出相吻合。
 新鲜 % 是前缀缓存命中率的天花板 —— 将其与 `cache_hit_ratio` 中实测的命中率对比。

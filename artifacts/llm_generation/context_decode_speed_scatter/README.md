@@ -69,10 +69,10 @@ uv run python artifacts/llm_generation/context_decode_speed_scatter/plot.py \
 The stacked panels (the paper's `fig:context_decode_speed`) plot trace-observed timing against total
 input context, with binned p25/median/p90 trends over the per-step cloud. The headline is that longer
 context goes with slower generation, but the per-step spread is wide at every context length. Claude's
-binned median normalized decode speed holds near 50–54 tokens/s through most of its range and only
-sags at the longest contexts, down to about 43 tokens/s around 740k input tokens. Codex shows a
-clearer slope: its binned median falls from ~43 tokens/s at 12k–23k input tokens to ~29 tokens/s near
+binned median normalized decode speed holds near 54–58 tokens/s through most of its range and only
+sags at the longest contexts, down to about 48 tokens/s around 740k input tokens. Codex shows a
+clearer slope: its binned median is ~40–41 tokens/s at 12k–23k input tokens and ~28 tokens/s near
 185k. The Codex-only panels isolate the components — median pure decode speed drops from ~74 tokens/s
-at 12k to ~55 tokens/s near 185k, while median residual TTFT climbs from ~1.5s to ~2.9s over the same
+at 12k to ~55 tokens/s near 185k, while median residual TTFT rises from ~1.5s to ~2.8s over the same
 range. So context length alone does not explain the variance; scheduling, model version, output shape,
 and backend state evidently contribute too.

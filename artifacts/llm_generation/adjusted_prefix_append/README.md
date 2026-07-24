@@ -110,7 +110,7 @@ charged tokens *after* subtracting the prior step's replayed output. The takeawa
   append spreads widely, so cache reuse and genuinely-new context grow independently.
 - Subtracting the prior output pulls the append cloud down versus the raw append: much of what looks
   like "new" input each step is the previous assistant response being replayed, not external content.
-  For Claude the median raw append of 835 tokens collapses to 251 once the prior output is removed —
+  For Claude the median raw append of 967 tokens becomes 285 once the prior output is removed —
   roughly two-thirds of the "new" tokens were just replay. The summary CSV quantifies the gap
   (`raw_append` vs `adjusted_append`, and the `clipped_after_subtract` share where the subtraction
   drove the append to zero).

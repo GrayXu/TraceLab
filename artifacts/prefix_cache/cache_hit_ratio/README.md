@@ -115,8 +115,8 @@ text. Read this panel to find where new-token spend concentrates — `cache_hit_
 
 The token-weighted hit rate by step type (the paper's `tab:prefix_cache_hit_rate`). Caching is
 uniformly high overall: both providers serve about **96%** of prompt tokens from the prefix cache
-(Claude 95.8%, Codex 95.7%). The interesting split is by trigger — **user-initiated** steps hit
-much lower (86.9% Claude, 78.2% Codex) because human think time can stretch the idle gap past the
-eviction window, whereas **tool-result** steps stay near-perfect (97.9% / 97.2%) since they resume
+(Claude 95.2%, Codex 96.2%). The interesting split is by trigger — **user-initiated** steps hit
+much lower (82.8% Claude, 84.4% Codex) because human think time can stretch the idle gap past the
+eviction window, whereas **tool-result** steps stay near-perfect (98.1% / 97.3%) since they resume
 almost immediately. So the misses that remain are concentrated where the agent waits on a person,
 not on a tool.

@@ -110,10 +110,10 @@ Each PNG embeds this README, the CSVs above, and the plotting code (`plot.py` + 
 ### human_input_wait_cdf.png
 
 The wait distribution is short at the body but spans seven orders of magnitude into the tail. The
-median human reply is fast — **~86s overall** (Claude p50 79s, Codex p50 95s) — but the curve keeps
-climbing well past an hour: p90 is ~21 min overall, p99 ~14h, and the longest gap is a session
+median human reply is fast — **~86s overall** (Claude p50 120s, Codex p50 59s) — but the curve keeps
+climbing well past an hour: p90 is ~15 min overall, p99 ~11.2h, and the longest gap is a session
 resumed **~31 days** later. The two providers track closely through the body, with Codex sitting
-slightly to the right (higher mean idle, 3,260s vs Claude's 2,401s). Read the height at the 5-minute
+slightly to the left (mean idle 2,325s vs Claude's 2,406s). Read the height at the 5-minute
 or 1-hour landmark to see how often the human answers before the prefix cache likely goes cold; the
 long right tail is sessions left open for hours or days.
 

@@ -84,9 +84,9 @@ The PNGs are self-contained — each embeds this README, the CSVs, and the plott
 ### tool_category_count_ring.png
 
 The donut shows how the agents' tool calls split across the six coarse categories, and the ordering
-is sharply heavy-headed. Execute-command alone is ~76% of all calls, file write/edit ~11% and file
-read/search ~9%; agent/task (~1.2%) and web/remote/lookup (~1.0%) are thin slivers, with everything
-else folded into `Other` (~2.1%). So once provider-specific tool names are normalized into shared
+is sharply heavy-headed. Execute-command alone is 73.4% of all calls, file write/edit 10.4% and file
+read/search 9.3%; agent/task (1.5%) and web/remote/lookup (1.0%) are thin slivers, with everything
+else folded into `Other` (4.3%). So once provider-specific tool names are normalized into shared
 categories, the agents' work is overwhelmingly shell execution plus file I/O. The center label is
 the total call count and each slice is annotated with its share; the legend carries exact counts so
 the small slices stay legible.
@@ -95,10 +95,10 @@ the small slices stay legible.
 
 Re-ranking the same categories by **summed effective latency** (hours) tells a different story than
 the count ring, because per-call cost varies by more than two orders of magnitude (each bar is
-annotated with average seconds per call). Execute-command still leads at ~1143h, but its ~18s
-average is dwarfed per-call by agent/task (~63s avg, 90.9h total) and web/remote/lookup (~24s avg,
-27.0h), and the `Other` bucket punches far above its 2% call share at ~307h (~127s avg). File
-read/search, despite being the third-most-called category, costs only ~12.6h at ~1.2s per call.
+annotated with average seconds per call). Execute-command leads at ~1,826h, while agent/task
+averages ~43s per valid call (128h total) and web/remote/lookup ~16s (33.5h). The `Other` bucket
+punches far above its 4.3% call share at ~968h (~109s average). File read/search, despite being
+the third-most-called category, costs only ~17.8h at ~0.93s per valid call.
 That is the count-vs-cost gap: cheap high-frequency primitives versus expensive, rarer calls that
 block on real work or the user.
 
@@ -116,9 +116,9 @@ aggregate.
 ### tool_latency_long_tail_imbalance.png
 
 This is the headline imbalance: the top bar is each latency bin's **share of calls**, the bottom
-its **share of total latency**, and the two invert. The `<1s` bin holds ~61% of calls but only
-~0.5% of total latency, and `1–10s` adds another ~27% of calls for ~4% of latency. At the other
-end the `>1m` bin is just ~4% of calls yet ~85% of all tool latency, with `10s–1m` (~8% of calls)
-contributing the remaining ~11%. So a handful of slow calls account for the overwhelming majority
+its **share of total latency**, and the two invert. The `<1s` bin holds 61.3% of calls but only
+0.6% of total latency, and `1–10s` adds 25.4% of calls for 4.2% of latency. At the other
+end the `>1m` bin is just 3.4% of calls yet 83.6% of all tool latency, with `10s–1m` (10.0% of calls)
+contributing 11.7%. So a handful of slow calls account for the overwhelming majority
 of time spent in tools — the same long-tail signature seen per-provider, now aggregated across
 categories. Exact figures are in `tool_latency_long_tail_imbalance.csv`.

@@ -73,7 +73,7 @@ uv run python artifacts/tool_calls/tool_call_counts/plot.py --db "$TMPDIR/trace.
 工具使用呈陡峭集中：命令执行在两个提供商中都居首，紧随其后的是 Read、Edit 这类
 文件操作（论文中的 `fig:tool_call_counts`）。Claude 倚重 `Bash`
 （被截断的领头者，标注其真实的 67k 次调用），其次是 `Read`（32k）和 `Edit`（18k）；
-Codex 倚重 `exec_command`（187k），其次是 `write_stdin`（63k）和 `apply_patch`（24k）。这种
+Codex 倚重 `exec_command`（252k），其次是 `write_stdin`（76k）和 `exec`（47k）。这种
 集中极其显著——在 Claude 的 54 个不同工具和 Codex 的 31 个工具中，前三名
 就占了 Claude 调用的 80% 以上以及 Codex 的约 95%。头部之外的一切都是一条由
 专用工具和 MCP 工具构成的细长长尾，被折叠进 `Other` 柱。红色错误叠加层

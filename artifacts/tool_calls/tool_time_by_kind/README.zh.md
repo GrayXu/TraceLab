@@ -88,7 +88,7 @@ uv run python artifacts/tool_calls/tool_time_by_kind/plot.py --db "$TMPDIR/trace
 紧随其后的是 Codex 的 `write_stdin`，约 317h。第三根柱暴露了另一种机制：Claude 的
 `AskUserQuestion` 仅靠 784 次调用就达到约 243h，因为每一次都阻塞等待人类
 （平均约 19 min/call）；`Agent`（约 55h）和 `ExitPlanMode`（约 51h）是类似的慢-但-罕见的阻塞者。相比
-之下，Codex 的 `exec_command`——被调用最多的单个工具，达 187k 次调用——仅合计约 51h，
+之下，Codex 的 `exec_command`——被调用最多的单个工具，达 252k 次调用——合计约 72h，
 因为每次调用都很廉价。由于延迟在并行调用上可加，这些都是归因到的
 工作量，而非墙钟会话时间；CSV（`latency_share`、`avg_latency_ms`）有精确的
 数字，包括折叠进 `Other` 的尾部。

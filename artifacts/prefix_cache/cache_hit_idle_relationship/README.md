@@ -125,7 +125,7 @@ a red dashed 10% low-hit floor, and vertical guides at 5m and 1h. This is the us
 the paper's `fig:prefix_cache_hit_rate_by_idle_time`, and it shows the time-based-eviction signature:
 the low-hit points cluster at long waits. Below ~5m almost every step still hits, but past that the
 low-hit tail thickens, and beyond 1h the cache is effectively gone. The data backs this up — among
-user steps whose hit rate dips under 10%, the median preceding wait is ~21 min and the p90 is ~10.6 h,
+user steps whose hit rate dips under 10%, the median preceding wait is ~12.5 min and the p90 is ~7.3 h,
 versus a ~2 min median wait for user steps overall. So user misses are idle-driven: the prefix ages
 out during the human's pause and the next request re-appends most of its context.
 

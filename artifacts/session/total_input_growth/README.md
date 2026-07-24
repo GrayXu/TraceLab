@@ -82,12 +82,12 @@ No figures.
 ### total_input_growth.md
 
 Context almost always grows step to step (the paper's `tab:context_growth_and_compaction`). Across
-all steps the window grows on **99.60%** of Claude steps and **96.56%** of Codex steps — new user
-input, tool results, and output all stack onto the prior context — adding ~1.7k–1.8k tokens per
-growing step. Reductions are rare and provider-shaped: for Claude the negatives are a tiny 0.39% and
-skew **major** (0.24%, real compactions), whereas Codex reduces ~9× more often (3.43%) and mostly in
+all steps the window grows on **99.59%** of Claude steps and **97.18%** of Codex steps — new user
+input, tool results, and output all stack onto the prior context — adding ~1.8k tokens per
+growing step. Reductions are rare and provider-shaped: for Claude the negatives are 0.34% and
+skew **major** (0.22%, real compactions), whereas Codex reduces 2.81% of the time and mostly in
 the harmless **micro/ordinary** bands. The split also concentrates by trigger: Codex's reductions
-pile up on **user-initiated** steps (31.3% of those steps shrink, vs. 0.97% of tool-initiated),
+pile up on **user-initiated** steps (20.91% of those steps shrink, vs. 0.85% of tool-initiated),
 while tool-initiated steps for both providers grow ~99% of the time.
 
 ### total_input_growth_summary.csv

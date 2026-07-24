@@ -76,13 +76,13 @@ uv run python artifacts/prefix_cache/redundant_prefill/analyze.py --db "$TMPDIR/
 
 ### redundant_prefill_table.md
 
-Fresh tokens are a small slice of all prefill (the paper's `tab:redundant_prefill`): only **19.0%**
-of appended tokens are genuinely new (12.3% Claude, 25.8% Codex), so the remaining ~81% is in
+Fresh tokens are a small slice of all prefill (the paper's `tab:redundant_prefill`): only **16.0%**
+of appended tokens are genuinely new (9.5% Claude, 28.7% Codex), so the remaining ~84% is in
 principle cache-serviceable — the gap to optimal. Inverting the fresh fraction gives the **prefill
 amplification factor**, how many times more tokens are prefilled than an eviction-free perfect cache
-would need: **5.3x overall** (8.1x Claude, 3.9x Codex). The split is sharply trigger-dependent:
-**user-initiated** steps are almost entirely re-sent context (fresh is just 1.7% Claude / 4.5% Codex
+would need: **6.3x overall** (10.5x Claude, 3.5x Codex). The split is sharply trigger-dependent:
+**user-initiated** steps are almost entirely re-sent context (fresh is just 1.0% Claude / 9.6% Codex
 of their append — a large window resent for a short new prompt), while **tool-result** steps carry
-the bulk of the genuinely new content (27.1% / 40.5%). Codex runs hotter on fresh fraction than
+the bulk of the genuinely new content (27.4% / 40.7%). Codex runs hotter on fresh fraction than
 Claude throughout, consistent with shorter resent windows and heavier tool output. The fresh % is
 the ceiling on prefix-cache hit rate — compare it against the measured rates in `cache_hit_ratio`.

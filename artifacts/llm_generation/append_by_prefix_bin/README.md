@@ -29,12 +29,12 @@ uv run python artifacts/llm_generation/append_by_prefix_bin/analyze.py        # 
 ## Headline numbers (public trace)
 
 - Append and prefix are **inversely** related. At `<1k` prefix (cold start — a cache miss or the
-  first request) the median append is **78k** tokens for Claude and **124k** for Codex.
-- Once the prefix exceeds ~32k (incremental tool-loop / user steps) the median append collapses
-  to **well under 1k** for both providers, with only a modest p99 tail.
+  first request) the median append is **96k** tokens for Claude and **120k** for Codex.
+- Once the prefix exceeds ~32k (incremental tool-loop / user steps) the median append is near
+  **1k** for both providers.
 - Bins reveal provider structure: Claude's prefix jumps almost straight to large values (the
-  `1-2k` bin is empty, `2-4k` has 2 steps) because its system prompt is large; Codex effectively
-  caps near its 256k context (only 6 steps exceed it).
+  `1-2k` bin is empty, `2-4k` has 3 steps) because its system prompt is large; Codex effectively
+  caps near its 256k context (1,192 steps exceed it).
 
 No figures.
 
@@ -45,10 +45,10 @@ No figures.
 The table (`tab:append_by_prefix`) quantifies the inverse relationship behind the prefix-vs-append
 scatter: the more a step has already cached, the less it appends. In the smallest prefix bin (`<1k`
 — a cache miss or the very first request, where almost nothing is cached) the median append is huge,
-78k tokens for Claude and 124k for Codex, because nearly the whole prompt has to be sent as new. Once
-the prefix grows past 32k the median append collapses to well under 1k (Claude 951→762, Codex
-954→771 across the `32-64k`..`>256k` bins), as those steps only stack an incremental tool result or
+96k tokens for Claude and 120k for Codex, because nearly the whole prompt has to be sent as new. Once
+the prefix grows past 32k the median append settles near 1k (Claude 1,200–840, Codex
+1,100–2,100 across the `32-64k`..`>256k` bins), as those steps only stack an incremental tool result or
 user turn onto an already-cached context. The bins also expose provider structure: Claude's prefix
-jumps almost straight to large values — its `1-2k` bin is empty and `2-4k` holds just 2 steps,
+jumps almost straight to large values — its `1-2k` bin is empty and `2-4k` holds just 3 steps,
 reflecting a large system prompt — while Codex effectively caps near its 256k context window, with
-only 6 steps exceeding it.
+1,192 steps exceeding it.

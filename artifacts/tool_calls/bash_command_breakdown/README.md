@@ -182,8 +182,8 @@ the sanitizer reads only the frozen reviewed file and assigns its own first-seen
 ### executable_popularity.png
 
 The pooled bar is each executable's share of *all* shell-command invocations, and the working set is
-dominated by text search/slicing plus glue. `sed` (10.1%), `grep` (9.5%), `head` (5.6%), `rg` (3.6%)
-and `tail` (4.1%) lead the tools, alongside `echo` (17.4%, shell plumbing) and `python-script` (4.7%),
+dominated by text search/slicing plus glue. `grep` (10.1%), `sed` (9.1%), `head` (6.4%), `rg` (3.0%)
+and `tail` (4.2%) lead the tools, alongside `echo` (18.1%, shell plumbing) and `python-script` (4.2%),
 with `git`, `ls`, `docker`, `find`, `nl`, `cd`, `wc`, and `cat` filling out the head. So once commands
 are broken into the programs they run, the
 agents' shell work is overwhelmingly reading, searching, and slicing files (plus printing progress) —
@@ -194,12 +194,12 @@ executable count.
 ### executable_popularity_by_provider.png
 
 Ranking each agent by its *own* share exposes two different default toolchains for the same file work.
-Claude leans on the classic pipeline utilities — `grep` (14.6%), `head` (7.9%), `tail` (4.9%), `ls`
-(3.8%) — with `echo` (26.3%) its dominant progress-print idiom. Codex instead reaches first for
-`sed` (24.2%), then `python-script` (10.1%), `rg` (9.7%), `git` (4.9%), `docker` (4.5%), and `nl`
-(4.3%). So the
+Claude leans on the classic pipeline utilities — `grep` (14.3%), `head` (8.5%), `tail` (5.1%), `ls`
+(4.3%) — with `echo` (25.4%) its dominant progress-print idiom. Codex instead reaches first for
+`sed` (25.0%), then `python-script` (9.6%), `rg` (9.6%), `git` (5.9%), `nl` (4.6%), and `docker`
+(4.0%). So the
 agents accomplish similar searching/slicing through distinct primitives: Claude via grep + head/tail,
-Codex via sed + ripgrep + nl. This also explains Claude's higher executables-per-call (≈6.0 vs ≈1.5):
+Codex via sed + ripgrep + nl. This also explains Claude's higher executables-per-call (≈5.6 vs ≈1.5):
 it strings more of these small utilities together per command.
 
 ### executable_runtime.png
@@ -219,11 +219,12 @@ that granularity in mind.
 This companion figure replaces Codex's quantized per-call duration with the observable command
 lifecycle: initial `exec_command.emitted_at` through the first linked result marked `finished`. It
 therefore captures commands that initially return `running` and finish through `write_stdin`, and it
-also gives immediate commands timestamp-level resolution. The shift is substantial: Codex `sed`
-moves from a 1 ms median / 493 ms p90 to 146 ms / 769 ms; `git` from 51 ms / 764 ms to 354 ms /
-3.97 s; and `pytest` from 1.00 s / 4.92 s to 5.45 s / 21.17 s. Claude is unchanged because its
-effective call latency already covers its `Bash` call. The updated Codex panel retains 163,519
-single-executable calls and excludes 3,147 without an observed successful finish, so unfinished,
+also gives immediate commands timestamp-level resolution. The raw and lifecycle views differ
+substantially: Codex `sed` is 1 ms / 425 ms in the raw median/p90 view and 154 ms / 700 ms over
+the lifecycle; `git` is 1 ms / 720 ms raw and 252 ms / 2.92 s lifecycle; `pytest` is
+1.00 s / 4.90 s raw and 5.34 s / 19.92 s lifecycle. Claude is unchanged because its effective
+call latency already covers its `Bash` call. The updated Codex panel retains 184,829
+single-executable calls and excludes 3,327 without an observed successful finish, so unfinished,
 aborted, failed, and session-error chains do not masquerade as completed command durations.
 
 `executable_runtime_updated_provider_colors_100ms.png` is the presentation variant of the same
@@ -234,15 +235,15 @@ logarithmic x-axis to 100 ms–20 min, and leaves the original full-range plot u
 ### executable_total_latency_top15.png
 
 Summing the raw per-call latency over attributable single-executable calls concentrates most time in
-a small set: the top 15 account for 90.8% of Claude's 95.4 hours and 88.1% of Codex's 52.6 hours.
-Claude's largest buckets are `python` (26.9 h), `python-script` (22.6 h), and `docker` (13.4 h);
-Codex's are `python-script` (14.4 h), `python` (13.9 h), and `docker` (4.7 h). This is the additive
+a small set: the top 15 account for 90.7% of Claude's 126.9 hours and 87.8% of Codex's 56.7 hours.
+Claude's largest buckets are `python` (46.5 h), `python-script` (26.1 h), and `docker` (14.2 h);
+Codex's are `python-script` (16.0 h), `python` (13.9 h), and `docker` (4.7 h). This is the additive
 raw tool-latency view and retains Codex's coarse/partial first-call timing.
 
 ### executable_total_latency_updated_top15.png
 
-Using observable completed-command duration leaves Claude unchanged but raises Codex's attributable
-total from 52.6 to 431.3 hours. `python-script` (139.0 h), `docker` (75.2 h), and `modal` (50.9 h)
-form the largest Codex buckets; its top 15 account for 85.7% of the updated total. This metric spans
+Using observable completed-command duration leaves Claude unchanged; Codex's attributable
+total is 503.3 hours. `python-script` (173.6 h), `docker` (75.3 h), and `custom_111` (58.6 h)
+form the largest Codex buckets; its top 15 account for 85.7% of the total. This metric spans
 the initial `exec_command` emission through the first linked `finished` result, so for continued
 commands it includes the elapsed intervals between polling calls as well as time inside the calls.

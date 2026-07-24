@@ -48,11 +48,11 @@ uv run python artifacts/session/session_compaction_counts/analyze.py \
 
 ## Headline numbers (public trace, default criteria)
 
-- Of **1,630** major reductions (≥64k drops), **1,519** (93.2%) qualify as compactions.
-- **9.7%** of the 4,265 sessions undergo at least one compaction.
-- Overwhelmingly **tool-initiated** (86.5%, mid-loop) rather than user-initiated.
-- Far more common in **Codex** (18.4% of sessions, 1,235 events) than **Claude** (4.5%, 284).
-- Among sessions that compact at all, the mean is 3.7 and the tail is long (Codex p99 = 34).
+- Of **2,750** major reductions (≥64k drops), **2,520** (91.6%) qualify as compactions.
+- **8.8%** of the 8,058 sessions undergo at least one compaction.
+- Predominantly **tool-initiated** (79.2%, mid-loop) rather than user-initiated.
+- Far more common in **Codex** (17.4% of sessions, 1,984 events) than **Claude** (4.4%, 536).
+- Among sessions that compact at all, the mean is 3.5 and the tail is long (Codex p99 = 37).
 
 No figures.
 
@@ -61,10 +61,10 @@ No figures.
 ### session_compaction_counts.md
 
 Most large context drops are genuine compactions, and they hit Codex far harder than Claude (the
-paper's `tab:session_compaction`). Of the major (≥64k) reductions, **284/324** qualify for Claude
-and **1,235/1,306** for Codex — 1,519 of 1,630 combined — so the structural near-limit + slow-recovery
+paper's `tab:session_compaction`). Of the major (≥64k) reductions, **536/669** qualify for Claude
+and **1,984/2,081** for Codex — 2,520 of 2,750 combined — so the structural near-limit + slow-recovery
 test rarely flags a false positive. Compactions are uncommon per session but lopsided by provider:
-only **4.5%** of Claude sessions ever compact versus **18.4%** of Codex, and among sessions that do,
-the mean and tail are larger for Codex (avg 4.23, p99 = 34) than Claude (avg 2.37, p99 = 12). The
+only **4.4%** of Claude sessions ever compact versus **17.4%** of Codex, and among sessions that do,
+the mean and tail are larger for Codex (avg 4.16, p99 = 37) than Claude (avg 2.28, p99 = 12). The
 trigger split mirrors the autonomy finding: Codex compactions are overwhelmingly **tool-initiated**
-(91.9%, auto-compaction mid-loop), while Claude's are more evenly split (63.0% tool / 37.0% user).
+(82.5%, auto-compaction mid-loop), while Claude's are more evenly split (67.0% tool / 33.0% user).

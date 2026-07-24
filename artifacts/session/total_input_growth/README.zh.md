@@ -62,7 +62,7 @@ uv run python artifacts/session/total_input_growth/analyze.py --db "$TMPDIR/trac
 
 ### total_input_growth.md
 
-上下文几乎总是逐步骤增长（论文的 `tab:context_growth_and_compaction`）。在所有步骤中，窗口在 **99.60%** 的 Claude 步骤和 **96.56%** 的 Codex 步骤上增长——新的用户输入、工具结果以及输出全都叠加到先前的上下文之上——每个增长的步骤增加约 ~1.7k–1.8k 个 token。缩减很罕见，且呈现提供商特性：对 Claude 而言，负值只占极小的 0.39%，且偏向 **major**（0.24%，真正的压缩），而 Codex 减少的频率约高出 ~9×（3.43%），且大多落在无害的 **micro/ordinary** 区间。这一分布还按触发器集中：Codex 的缩减堆积在**用户触发**步骤上（其中 31.3% 的步骤缩小，对比工具触发的 0.97%），而两个提供商的工具触发步骤都有约 99% 的时间在增长。
+上下文几乎总是逐步骤增长（论文的 `tab:context_growth_and_compaction`）。在所有步骤中，窗口在 **99.59%** 的 Claude 步骤和 **97.18%** 的 Codex 步骤上增长——新的用户输入、工具结果以及输出全都叠加到先前的上下文之上——每个增长的步骤增加约 1.8k 个 token。缩减很罕见，且呈现提供商特性：对 Claude 而言，负值占 0.34%，且偏向 **major**（0.22%，真正的压缩），而 Codex 的缩减占 2.81%，且大多落在无害的 **micro/ordinary** 区间。这一分布还按触发器集中：Codex 的缩减堆积在**用户触发**步骤上（其中 20.91% 的步骤缩小，对比工具触发的 0.85%），而两个提供商的工具触发步骤都有约 99% 的时间在增长。
 
 ### total_input_growth_summary.csv
 

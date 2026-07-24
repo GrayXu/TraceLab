@@ -35,9 +35,9 @@ No figures.
 ### session_internal_counts.md
 
 Coding sessions are persistent and overwhelmingly autonomous (the paper's
-`tab:session_internal_counts`). A session averages 9.2 requests but with a long tail (p99 = 137),
+`tab:session_internal_counts`). A session averages 10.1 requests but with a long tail (p99 = 161),
 so the human keeps coming back to the same session over and over. Per session there are far more
-tool-initiated steps (avg 73.6) than user-initiated ones (avg 8.9), so once a request lands the
-loop runs itself: resolving one request takes ~8 tool-initiated steps and ~11 tool calls on
-average. At the step level each round issues just over one tool call (avg 1.2, p50 1, p90 2), so
+tool-initiated steps (avg 69.9) than user-initiated ones (avg 9.8), so once a request lands the
+loop runs itself: resolving one request takes 6.7 tool-initiated steps and 8.9 tool calls on
+average. At the step level each round issues just over one tool call (avg 1.1, p50 1, p90 2), so
 parallel tool calling does happen but is the exception, not the norm.
