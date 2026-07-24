@@ -27,7 +27,7 @@ user-initiated (an explicit `/compact` or a new request that forced summarizatio
 
 ```bash
 # pinned public trace
-uv run python artifacts/session/session_compaction_counts/analyze.py -i trace/syfi_coding_trace.jsonl
+uv run python artifacts/session/session_compaction_counts/analyze.py --db trace/syfi_coding_trace.duckdb
 
 # default merged trace
 uv run python artifacts/session/session_compaction_counts/analyze.py

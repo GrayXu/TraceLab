@@ -6,7 +6,7 @@ calls and latency in every downstream tool study.)
 
 ## Input
 
-`trace/llm_round_trace.merged.all_users.jsonl` (override with `-i`).
+`trace/syfi_coding_trace.duckdb` (override with `--db`).
 
 ## Method / key assumptions
 
@@ -20,7 +20,7 @@ calls and latency in every downstream tool study.)
 
 ```bash
 uv run python validators/trace_facts/tool_duplicate_audit/analyze.py
-uv run python validators/trace_facts/tool_duplicate_audit/analyze.py -i trace/sample.jsonl
+uv run python validators/trace_facts/tool_duplicate_audit/analyze.py --db trace/syfi_coding_trace.duckdb
 ```
 
 ## Outputs (written here)

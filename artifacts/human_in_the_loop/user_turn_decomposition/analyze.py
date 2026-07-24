@@ -6,10 +6,9 @@ normalized JSONL line by line, this reads round scalars + per-round timing event
 latencies from the trace DB and replays the same stateful per-session decomposition over rounds in
 ingestion order (``round_pk`` == file order). The result is byte-identical to the pre-DuckDB path.
 
-This experiment is registered with ``style="global"`` in ``run_all.py`` and the web driver: the shim
-imports this module, assigns ``module.INPUT = <path>``, then calls ``main()`` with no CLI flags. That
-contract is preserved — ``INPUT`` stays a module-level default and ``main()`` falls back to it when no
-``--db``/``-i`` is given — while the standard ``--db | -i/--input | -o`` CLI is also available.
+This experiment is registered with ``style="direct"`` in ``run_all.py``. DB-backed direct-style
+experiments receive ``--db`` directly, and a direct run defaults to the released DuckDB. The
+standard ``--db | -i/--input | -o`` CLI is available; explicit JSONL input is a compatibility path.
 """
 
 from __future__ import annotations
@@ -30,9 +29,6 @@ sys.path.insert(0, str(REPO_ROOT / "artifacts" / "utils"))
 
 import trace_db  # noqa: E402
 
-# Module-level default input. The `style="global"` driver path assigns `module.INPUT = <path>` before
-# calling `main()`; `main()` honors INPUT as the `-i` default when neither `--db` nor `-i` is passed.
-INPUT = REPO_ROOT / "trace" / "llm_round_trace.merged.all_users.jsonl"
 OUT_MD = EXP_DIR / "result_analysis.md"
 
 INPUT_EVENT_TYPES = {"user_message", "tool_result"}
@@ -294,15 +290,10 @@ def main() -> int:
         description=__doc__,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    # Default `-i` to None so the module-level INPUT (which the `style="global"` driver assigns at
-    # runtime, after import) is honored as the fallback inside main(); `add_db_args` still wires the
-    # standard --db | -i/--input | -o surface.
+    # Direct runs default to the released DuckDB; an explicit -i/--input remains a compatibility
+    # path that the shared layer materializes before querying.
     trace_db.add_db_args(parser, default_output_dir=EXP_DIR)
     args = parser.parse_args()
-    if args.db is None and args.input == trace_db.DEFAULT_INPUT:
-        # No explicit --db/-i: fall back to this module's INPUT (the global-driver contract).
-        args.input = Path(INPUT)
-
     con = trace_db.open_from_args(args)
 
     events_by_round = load_timing_events(con)
@@ -376,7 +367,9 @@ def main() -> int:
         close_turn(session_id)
 
     out_md = Path(getattr(args, "output_dir", None) or EXP_DIR) / "result_analysis.md"
-    input_label = str(args.db) if args.db is not None else str(Path(args.input).resolve())
+    input_label = (
+        str(Path(args.input).resolve()) if args.input is not None else str(args.db)
+    )
 
     providers = ["all", *sorted(provider for provider in stats if provider != "all")]
     lines = [

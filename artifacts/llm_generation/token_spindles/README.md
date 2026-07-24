@@ -58,7 +58,7 @@ uv run python artifacts/llm_generation/token_spindles/plot.py
 uv run python artifacts/llm_generation/token_spindles/plot.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/llm_generation/token_spindles/plot.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/llm_generation/token_spindles/plot.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 ```
 
 `--db | -i/--input | -o/--output-dir` are the standard I/O flags; `-o` defaults to this folder.
@@ -71,7 +71,7 @@ uv run python artifacts/llm_generation/token_spindles/plot.py --db /tmp/trace.du
 - `result_analysis.md` — generated run log (policy note, axis note, pairing stats).
 
 Each PNG embeds this README, the summary CSV, and `plot.py`. Unpack with
-`python artifacts/utils/png_sidecar.py extract <png>`.
+`uv run python artifacts/utils/png_sidecar.py extract <png>`.
 
 ## SyFI result analysis
 

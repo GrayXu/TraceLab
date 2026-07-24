@@ -31,7 +31,7 @@ trace 为每个智能体步骤记录 `output_tokens`——该步骤生成的 tok
 
 ```bash
 # against the shared DuckDB built by run_all (no per-script re-parse)
-uv run python artifacts/llm_generation/output_tokens/plot.py --db /tmp/trace.duckdb
+uv run python artifacts/llm_generation/output_tokens/plot.py --db "$TMPDIR/trace.duckdb"
 
 # or straight from a JSONL trace (materialized to a temp cache on first use)
 uv run python artifacts/llm_generation/output_tokens/plot.py -i trace/sample.jsonl
@@ -45,7 +45,7 @@ uv run python artifacts/llm_generation/output_tokens/plot.py -i trace/sample.jso
 - `output_tokens_distribution.png`——按组的输出 token 直方图，置于以 2 为底的 token 轴上；图例报告每个组标签。
 - `output_tokens_summary.csv`——按组的分位数：`count, min, p50, p90, p95, p99, max, mean`，外加 `sample_count`（= `count`）和 `sampled`（恒为 `False`，因为统计是精确的）。
 
-该 PNG 是自包含的：它把本 README、`output_tokens_summary.csv` 以及绘图代码作为压缩文本块内嵌其中。用 `python artifacts/utils/png_sidecar.py extract <png>` 解包。
+该 PNG 是自包含的：它把本 README、`output_tokens_summary.csv` 以及绘图代码作为压缩文本块内嵌其中。用 `uv run python artifacts/utils/png_sidecar.py extract <png>` 解包。
 
 ## SyFI result analysis
 

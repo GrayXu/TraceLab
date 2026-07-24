@@ -60,7 +60,7 @@ trigger mapping is shared with `artifacts/utils/growth.py`.
 uv run python artifacts/prefix_cache/redundant_prefill/analyze.py
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/prefix_cache/redundant_prefill/analyze.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/prefix_cache/redundant_prefill/analyze.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 ```
 
 ## Outputs

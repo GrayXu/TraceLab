@@ -3,8 +3,9 @@
 
 from __future__ import annotations
 
-import json
+import argparse
 import math
+import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -13,8 +14,9 @@ from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]  # experiment -> category -> artifacts -> repo root
-INPUT = REPO_ROOT / "trace" / "llm_round_trace.merged.all_users.jsonl"
 OUT_MD = Path(__file__).with_name("result_analysis.md")
+sys.path.insert(0, str(REPO_ROOT / "validators"))
+from trace_rows import DEFAULT_DB, iter_rounds  # noqa: E402
 
 INPUT_EVENT_TYPES = {"user_message", "tool_result"}
 MODEL_OUTPUT_EVENT_TYPES = {"reasoning", "text", "tool_call"}
@@ -308,6 +310,9 @@ def fmt_dur(seconds: float) -> str:
 
 
 def main() -> int:
+    argument_parser = argparse.ArgumentParser(description=__doc__)
+    argument_parser.add_argument("--db", type=Path, default=DEFAULT_DB)
+    arguments = argument_parser.parse_args()
     active_by_session: dict[str, Turn] = {}
     results: list[TurnResult] = []
     dropped = Counter()
@@ -338,13 +343,7 @@ def main() -> int:
             gap_pattern_seconds[key] += seconds
             gap_pattern_counts[key] += 1
 
-    with INPUT.open("r", encoding="utf-8", errors="replace") as fh:
-        for line_no, line in enumerate(fh, start=1):
-            if not line.strip():
-                continue
-            row = json.loads(line)
-            if not isinstance(row, dict):
-                continue
+    for line_no, row in iter_rounds(arguments.db, include_tools=True):
             provider = str(row.get("provider") or "<unknown-provider>")
             session_id_value = row.get("session_id")
             session_id = session_id_value if isinstance(session_id_value, str) else None
@@ -440,7 +439,7 @@ def main() -> int:
     lines = [
         "# Deep User Turn Gap Audit",
         "",
-        f"Input: `{INPUT}`",
+        f"Input: `{arguments.db}`",
         "",
         "Turn window: response-triggering `user_message` to final model output (`reasoning`, `text`, or `tool_call`) before the next same-session response-triggering `user_message`.",
         "",

@@ -70,7 +70,7 @@ uv run python artifacts/tool_calls/tool_latency_distribution/plot.py
 uv run python artifacts/tool_calls/tool_latency_distribution/plot.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/tool_calls/tool_latency_distribution/plot.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/tool_calls/tool_latency_distribution/plot.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 ```
 
 实用参数：`--top-tools`（每个面板最多箱数，默认 30）、`--min-tool-calls-for-plot`
@@ -90,7 +90,7 @@ uv run python artifacts/tool_calls/tool_latency_distribution/plot.py --db /tmp/t
 - `tool_total_latency_cdf_by_provider.png` / `.csv`——来自 ≤ 某阈值的调用的累积延迟求和，按提供商。
 
 每张 PNG 都是自包含的——它嵌入了本 README、CSV 以及绘图代码。用
-`python artifacts/utils/png_sidecar.py extract <png>` 解包。
+`uv run python artifacts/utils/png_sidecar.py extract <png>` 解包。
 
 ## SyFI result analysis
 

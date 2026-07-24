@@ -80,7 +80,7 @@ Method and assumptions:
 
 ```bash
 uv run python artifacts/prefix_cache/eviction_tradeoff/analyze.py            # default merged trace
-uv run python artifacts/prefix_cache/eviction_tradeoff/analyze.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/prefix_cache/eviction_tradeoff/analyze.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 uv run python artifacts/prefix_cache/eviction_tradeoff/analyze.py --no-plots # CSV only
 ```
 

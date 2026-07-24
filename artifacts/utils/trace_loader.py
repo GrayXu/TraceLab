@@ -43,9 +43,6 @@ TRACE_DIR = REPO_ROOT / "trace"
 ARTIFACTS_DIR = REPO_ROOT / "artifacts"
 
 
-DEFAULT_INPUT = TRACE_DIR / "llm_round_trace.merged.all_users.jsonl"
-
-
 def load_trace(
     input_path: Path,
     *,
@@ -311,7 +308,7 @@ def json_ready(value: Any) -> Any:
 def add_common_loader_args(
     parser: argparse.ArgumentParser,
     *,
-    default_input: Path = DEFAULT_INPUT,
+    default_input: Path | None = None,
     default_output_dir: Path | None = None,
 ) -> argparse.ArgumentParser:
     """Add the standard trace-loader CLI options used by every figure driver.
@@ -324,6 +321,7 @@ def add_common_loader_args(
         "--input",
         type=Path,
         default=default_input,
+        required=default_input is None,
         help="Input normalized JSONL trace",
     )
     parser.add_argument(

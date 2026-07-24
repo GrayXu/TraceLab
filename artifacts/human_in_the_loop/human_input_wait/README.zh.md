@@ -54,7 +54,7 @@ uv run python artifacts/human_in_the_loop/human_input_wait/plot.py
 uv run python artifacts/human_in_the_loop/human_input_wait/plot.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/human_in_the_loop/human_input_wait/plot.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/human_in_the_loop/human_input_wait/plot.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 ```
 
 ## 输出
@@ -70,7 +70,7 @@ uv run python artifacts/human_in_the_loop/human_input_wait/plot.py --db /tmp/tra
 
 每张 PNG 都把本 README、上述 CSV，以及绘图代码（`plot.py` + 共享的
 `artifacts/utils/` 模块）以压缩文本 chunk 的形式嵌入。可用
-`python artifacts/utils/png_sidecar.py extract <png>` 解包。
+`uv run python artifacts/utils/png_sidecar.py extract <png>` 解包。
 
 ## SyFI result analysis
 

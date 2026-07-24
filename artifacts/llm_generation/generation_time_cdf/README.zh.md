@@ -41,7 +41,7 @@ uv run python artifacts/llm_generation/generation_time_cdf/plot.py
 uv run python artifacts/llm_generation/generation_time_cdf/plot.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/llm_generation/generation_time_cdf/plot.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/llm_generation/generation_time_cdf/plot.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 ```
 
 ## 输出
@@ -49,7 +49,7 @@ uv run python artifacts/llm_generation/generation_time_cdf/plot.py --db /tmp/tra
 - `llm_generation_time_count_cdf_by_provider.png` / `.csv` — 各提供商在生成时间阈值上的计数 CDF（step `≤ T`），含每箱及累计的计数/占比。
 - `llm_generation_time_total_cdf_by_provider.png` / `.csv` — 各提供商的累加时间 CDF，含每箱秒数/小时数及累计时间占比。
 
-每张 PNG 以压缩文本块的形式嵌入了本 README、上述 CSV，以及绘图代码（`plot.py` + 共享的 `artifacts/utils/` 模块）。可用 `python artifacts/utils/png_sidecar.py extract <png>` 解包。
+每张 PNG 以压缩文本块的形式嵌入了本 README、上述 CSV，以及绘图代码（`plot.py` + 共享的 `artifacts/utils/` 模块）。可用 `uv run python artifacts/utils/png_sidecar.py extract <png>` 解包。
 
 ## SyFI result analysis
 

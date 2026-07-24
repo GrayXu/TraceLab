@@ -33,9 +33,9 @@ from cdf import plot_count_cdf_by_provider     # generic, shared by several expe
 # from accumulators import ReservoirSampler, numeric_sample
 ```
 
-By convention each experiment defaults its input to
-`trace/llm_round_trace.merged.all_users.jsonl` and its output directory to its own
-folder (`Path(__file__).resolve().parent`).
+By convention each experiment defaults to `trace/syfi_coding_trace.duckdb` and writes to its own
+folder (`Path(__file__).resolve().parent`). JSONL is only a compatibility override for the
+materialization boundary.
 
 ## Modules
 
@@ -71,6 +71,9 @@ dependencies; the composed modules import only from base ones.
 - **`trace_loader.py`** — `load_trace(...)` (one streaming pass that builds every
   aggregate) and the shared driver helpers `add_common_loader_args` /
   `load_trace_from_args` / `json_ready` + the default path constants.
+- **`command_chains.py`** — reconstructs Codex `exec_command` → `write_stdin` chains from the
+  minimal normalized linkage fields and derives observed finish time, full wall time, and summed
+  per-call tool time.
 
 **Standalone:**
 
@@ -90,6 +93,10 @@ These are the definitions every experiment README points back to:
 
 - **effective tool latency** = `tool_internal_latency_ms` when present, else
   `tool_wall_latency_ms` (= `result_at − emitted_at`).
+- **Codex command wall time** = initial `exec_command.emitted_at` → the first linked result whose
+  `command_status` is `finished` (the terminal `write_stdin` for a continued command).
+- **Codex command tool-call sum** = effective latency of the initial `exec_command` plus every
+  linked `write_stdin`; unlike command wall time, this excludes gaps between polls.
 - **observable generation time** = latest input event (`user_message`/`tool_result`)
   → last model-output event (`reasoning`/`text`/`tool_call`) in the round.
 - **human input wait** = previous same-session model-output event → the next

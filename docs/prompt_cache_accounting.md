@@ -81,7 +81,7 @@ So the closest observable to Claude's cache write is `newly_append_tokens`, but
 it is cache-miss/new-append accounting rather than an explicit cache-write
 counter.
 
-Adjacent-round evidence from `trace/llm_round_trace.merged.all_users.jsonl`:
+Adjacent-round evidence from `trace/collections/current/merged.private.jsonl`:
 
 ```text
 next.prefix_tokens ~= last.input_tokens_total
@@ -154,7 +154,7 @@ jitter, and without a direct public/raw counter for cache writes.
 The Codex extractor currently has subagent-aware session assignment in
 `scripts/extract_codex_rounds.py`: subagent files keep live child turns under
 the child session while replayed parent turns are assigned back to the parent
-session id for deduplication. The checked `trace/llm_round_trace.merged.all_users.jsonl`
+session id for deduplication. The checked `trace/collections/current/merged.private.jsonl`
 was written before that extractor update, so large positive prefix jumps found
 in that trace may include subagent replay artifacts. Recollect before treating
 the current Codex jump counts as final.

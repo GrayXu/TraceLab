@@ -60,7 +60,7 @@ uv run python artifacts/prefix_cache/cache_hit_ratio/analyze.py
 uv run python artifacts/prefix_cache/cache_hit_ratio/analyze.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/prefix_cache/cache_hit_ratio/analyze.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/prefix_cache/cache_hit_ratio/analyze.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 
 # CSV-only (skip figures)
 uv run python artifacts/prefix_cache/cache_hit_ratio/analyze.py --no-plots
@@ -82,7 +82,7 @@ uv run python artifacts/prefix_cache/cache_hit_ratio/analyze.py --no-plots
 
 这些 PNG 是自包含的 —— 它们内嵌了本 README、各 CSV 以及绘图代码(`analyze.py`
 加上共享的 `artifacts/utils/` 模块)。用
-`python artifacts/utils/png_sidecar.py extract <png>` 解包。
+`uv run python artifacts/utils/png_sidecar.py extract <png>` 解包。
 
 ## SyFI result analysis
 

@@ -41,7 +41,7 @@ uv run python artifacts/llm_generation/output_append_assignment/plot.py
 uv run python artifacts/llm_generation/output_append_assignment/plot.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/llm_generation/output_append_assignment/plot.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/llm_generation/output_append_assignment/plot.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 ```
 
 有用的 flag：`--max-gap-seconds`（配对间隔上限，默认 240）、`--min-output-tokens`（每个阈值一套图，默认 `2000 4000`）、`--max-points-per-scenario`（每个场景的散点/rank 子采样，默认 6000）。
@@ -61,7 +61,7 @@ uv run python artifacts/llm_generation/output_append_assignment/plot.py --db /tm
 
 每个 PNG 都是自包含的——它内嵌了本 README、summary CSV 以及绘图代码
 （`plot.py` + 共享的 `artifacts/utils/` 模块）。用
-`python artifacts/utils/png_sidecar.py extract <png>` 解包。
+`uv run python artifacts/utils/png_sidecar.py extract <png>` 解包。
 
 ## SyFI result analysis
 

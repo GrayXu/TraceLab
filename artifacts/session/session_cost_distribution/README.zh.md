@@ -12,15 +12,14 @@
 ## 定义
 
 - **成本**使用单一来源的价格表 `artifacts/utils/pricing.json`，经由
-  `web_analytics/pricing.py`（`price_for` → 按模型做精确/family 解析；`round_cost` → 追加按输入/缓存写入费率、前缀按缓存读取费率、输出按输出费率——与网页 dashboard 所用的同一套计费）。模型没有价格的轮次为*未计价*并被排除；99.1% 的轮次已计价（其余是 `codex:codex-auto-review` / null-model 的行）。覆盖率会被打印出来。
+  `web_analytics/pricing.py`（`price_for` → 按模型做精确/family 解析；`round_cost` → 追加按输入/缓存写入费率、前缀按缓存读取费率、输出按输出费率——与网页 dashboard 所用的同一套计费）。模型没有价格的轮次为*未计价*并被排除；98.52% 的轮次已计价。剩余 8,215 个轮次来自 `codex-auto-review`、`glm-5.2` 或 `minimax-m2.1`；无 model 的 Codex replay artifact 已删除。覆盖率会被打印出来。
 - **请求** —— 一个用户轮次，经由与
-  `human_in_the_loop/user_turn_decomposition` 相同的轮次状态机（39,202 个轮次，与 `user_turn_response_time`
-  和 `session_internal_counts` 一致）。**步骤** —— 一个 LLM 轮次。**会话** —— 一个 `session_id`。
+  `human_in_the_loop/user_turn_decomposition` 相同的轮次状态机。**步骤** —— 一个 LLM 轮次。**会话** —— 一个 `session_id`。
 
 ## 运行方式
 
 ```bash
-uv run python artifacts/session/session_cost_distribution/analyze.py -i trace/syfi_coding_trace.jsonl
+uv run python artifacts/session/session_cost_distribution/analyze.py --db trace/syfi_coding_trace.duckdb
 uv run python artifacts/session/session_cost_distribution/analyze.py            # default merged trace
 ```
 
@@ -33,11 +32,11 @@ uv run python artifacts/session/session_cost_distribution/analyze.py            
 - stdout —— 合并 + 按提供商（Claude / Codex）的 token 与成本分位数，以及
   追加 / 前缀 / 输出的成本构成。
 
-## 关键数字（公开数据，列表价截至 2026-06）
+## 关键数字（公开数据，列表价截至 2026-07）
 
-- **成本构成：前缀/缓存 59.5%，追加/新鲜输入 29.2%，输出 11.2%。** 尽管有约 ~10× 的缓存读取折扣，缓存输入仍纯粹靠体量主导了支出。
-- 平均成本：**$9.70 / 会话**、**$1.01 / 请求**、**$0.11 / 步骤**；中位数则低得多
-  （$0.61 / $0.33 / $0.074），并带有沉重的会话尾部（p99 = $178）。
+- **成本构成：前缀/缓存 56.8%，追加/新鲜输入 32.2%，输出 11.0%。** 尽管有约 ~10× 的缓存读取折扣，缓存输入仍纯粹靠体量主导了支出。
+- 平均成本：**$11.6 / 会话**、**$1.12 / 请求**、**$0.14 / 步骤**；中位数则低得多
+  （$0.72 / $0.37 / $0.08），并带有沉重的会话尾部（p99 = $209）。
 
 无图。
 
@@ -46,4 +45,4 @@ uv run python artifacts/session/session_cost_distribution/analyze.py            
 ### session_cost_distribution.md
 
 对一个编码智能体而言，账单是由重新读取上下文主导的，而不是由生成主导（论文的
-`tab:cost_distribution`）。即便缓存**前缀 token 的计费费率大约只有新鲜输入费率的十分之一**，它们仍占总支出的 **59.5%**——纯属体量，因为不断累积的上下文在每个步骤上都被重放——相比之下追加/新鲜输入为 **29.2%**，而输出仅为 **11.2%**。尽管输出的每 token 价格很高，但它在总量上很便宜，因为每个步骤发出的 token 太少。绝对成本在中位数处是适度的（$0.61/会话，$0.33/请求，$0.07/步骤），但带有沉重的尾部：平均每个会话为 $9.70，p99 达到 **$178**，少数极长的会话驱动了大部分支出。这与「生成才是昂贵部分」的通常直觉恰好相反。
+`tab:cost_distribution`）。即便缓存**前缀 token 的计费费率大约只有新鲜输入费率的十分之一**，它们仍占总支出的 **56.8%**——纯属体量，因为不断累积的上下文在每个步骤上都被重放——相比之下追加/新鲜输入为 **32.2%**，而输出仅为 **11.0%**。尽管输出的每 token 价格很高，但它在总量上很便宜，因为每个步骤发出的 token 太少。绝对成本在中位数处是适度的（$0.72/会话，$0.37/请求，$0.08/步骤），但带有沉重的尾部：平均每个会话为 $11.6，p99 达到 **$209**，少数极长的会话驱动了大部分支出。这与「生成才是昂贵部分」的通常直觉恰好相反。

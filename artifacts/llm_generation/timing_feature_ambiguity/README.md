@@ -9,7 +9,7 @@ output tokens)`?
 
 `../timing_fit/timing_fit_trace.csv` (override with `-i`) from
 `../timing_fit/collect_timing_fit_trace.py`. `artifacts/run_all.py` builds it
-automatically from `--input` before running this experiment. The fit-metrics comparison
+automatically from `--db` before running this experiment. The fit-metrics comparison
 reads `../timing_fit/timing_fit_metrics.csv` by default (`--fit-metrics`).
 
 ## Method / key assumptions
@@ -29,7 +29,7 @@ Recommended dispatcher path:
 ```bash
 uv run python artifacts/run_all.py \
   --only llm_generation/timing_feature_ambiguity \
-  --input trace/llm_round_trace.public.jsonl
+  --db trace/syfi_coding_trace.duckdb
 ```
 
 The dispatcher builds the timing CSV, runs `timing_fit` first so

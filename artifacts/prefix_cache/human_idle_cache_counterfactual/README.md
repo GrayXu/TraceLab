@@ -56,7 +56,7 @@ uv run python artifacts/prefix_cache/human_idle_cache_counterfactual/analyze.py
 
 # a prebuilt DB, into a chosen dir
 uv run python artifacts/prefix_cache/human_idle_cache_counterfactual/analyze.py \
-  --db trace/syfi_coding_trace.duckdb -o /tmp/out
+  --db trace/syfi_coding_trace.duckdb -o "$TMPDIR/out"
 ```
 
 ## Outputs
@@ -72,11 +72,10 @@ uv run python artifacts/prefix_cache/human_idle_cache_counterfactual/analyze.py 
 ### human_idle_cache_counterfactual.md
 
 From this consumer perspective, if user-initiated steps retained their prefix cache across human
-thinking time, append-prefill would drop from **2.34B** to **1.26B** tokens in the merged trace: a
-**1.07B-token** reduction, or **45.9%** of all append tokens. Because the estimate only changes
-user-initiated steps, that reduction is **95.1%** of observed user-initiated append tokens.
+thinking time, append-prefill would drop from **4.54B** to **2.00B** tokens in the merged trace: a
+**2.54B-token** reduction, or **55.9%** of observed append tokens for these steps.
 
-With `pricing.json` prices as of **2026-06**, the estimated final cost falls from **$40,431** to
-**$35,242**, saving **$5,189** (**12.8%**) over priced rounds. The split is **648.1M** fewer append
-tokens and **$3,680** saved for Claude, and **423.9M** fewer append tokens and **$1,508** saved for
-Codex. Dollar totals price **99.1%** of rounds; token reductions include all rounds.
+With `pricing.json` prices as of **2026-07**, the estimated final cost falls from **$78,503** to
+**$64,924**, saving **$13,580** (**17.3%**) over priced rounds. The split is **2.03B** fewer append
+tokens and **$11,797** saved for Claude, and **506.1M** fewer append tokens and **$1,782** saved for
+Codex. Dollar totals price **98.52%** of rounds; token reductions include all rounds.

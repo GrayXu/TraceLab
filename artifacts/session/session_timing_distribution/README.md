@@ -45,7 +45,7 @@ because **human thinking is a between-request quantity**:
 ## Running it
 
 ```bash
-uv run python artifacts/session/session_timing_distribution/analyze.py -i trace/syfi_coding_trace.jsonl
+uv run python artifacts/session/session_timing_distribution/analyze.py --db trace/syfi_coding_trace.duckdb
 uv run python artifacts/session/session_timing_distribution/analyze.py            # default merged trace
 ```
 

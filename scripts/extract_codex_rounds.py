@@ -23,6 +23,22 @@ from extract_claude_rounds import (
 
 EXIT_CODE_RE = re.compile(r"(?:Exit code|Process exited with code)[: ]+(-?\d+)")
 WALL_TIME_RE = re.compile(r"^Wall time:\s*([0-9]+(?:\.[0-9]+)?)\s*seconds\b", re.MULTILINE)
+PROCESS_RUNNING_RE = re.compile(r"Process running with session ID\s+([A-Za-z0-9_-]+)")
+CONTINUATION_FAILURE_RE = re.compile(
+    r"(?:write_stdin failed|no running session|stdin is closed for this session|"
+    r"session(?: ID)? [A-Za-z0-9_-]+ (?:was )?not found)",
+    re.IGNORECASE,
+)
+COMMAND_ABORTED_RE = re.compile(r"^aborted by user(?: after [0-9.]+s)?\s*$", re.IGNORECASE)
+COMMAND_FAILURE_RE = re.compile(
+    r"^(?:exec_command failed\b|failed to parse function arguments\b)",
+    re.IGNORECASE,
+)
+WRAPPED_OUTPUT_MARKER = "\nOutput:\n"
+PROCESS_ROOT_TOOLS = frozenset(("exec_command",))
+PROCESS_CONTINUATION_TOOLS = frozenset(("write_stdin",))
+TERMINAL_COMMAND_STATUSES = frozenset(("finished", "aborted", "failed", "session_error"))
+ERROR_COMMAND_STATUSES = TERMINAL_COMMAND_STATUSES - {"finished"}
 
 
 def usage_int(usage: dict[str, Any], key: str) -> int:
@@ -47,27 +63,101 @@ def wall_time_ms_from_output(output: Any) -> int | None:
     return round(float(match.group(1)) * 1000)
 
 
-def infer_error_from_output(output: Any) -> bool | None:
+def output_metadata(output: Any) -> dict[str, Any] | None:
+    if not isinstance(output, str):
+        return None
+    candidates = [output]
+    if WRAPPED_OUTPUT_MARKER in output:
+        candidates.append(output.rsplit(WRAPPED_OUTPUT_MARKER, 1)[1])
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict) and isinstance(parsed.get("metadata"), dict):
+            return parsed["metadata"]
+    return None
+
+
+def exit_code_from_output(output: Any) -> int | None:
     if not isinstance(output, str):
         return None
     match = EXIT_CODE_RE.search(output)
     if match:
-        return int(match.group(1)) != 0
-    try:
-        parsed = json.loads(output)
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(parsed, dict):
-        return None
-    metadata = parsed.get("metadata")
-    if isinstance(metadata, dict):
-        exit_code = metadata.get("exit_code")
-        if isinstance(exit_code, int):
-            return exit_code != 0
+        return int(match.group(1))
+    metadata = output_metadata(output)
+    if metadata is not None and isinstance(metadata.get("exit_code"), int):
+        return metadata["exit_code"]
+    return None
+
+
+def infer_error_from_output(output: Any) -> bool | None:
+    exit_code = exit_code_from_output(output)
+    if exit_code is not None:
+        return exit_code != 0
+    metadata = output_metadata(output)
+    if metadata is not None:
         success = metadata.get("success")
         if isinstance(success, bool):
             return not success
+    if isinstance(output, str) and (
+        COMMAND_ABORTED_RE.match(output) or COMMAND_FAILURE_RE.match(output)
+    ):
+        return True
     return None
+
+
+def tool_input_dict(input_value: Any) -> dict[str, Any] | None:
+    if isinstance(input_value, dict):
+        return input_value
+    if not isinstance(input_value, str):
+        return None
+    try:
+        parsed = json.loads(input_value)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def process_session_from_input(input_value: Any) -> str | None:
+    parsed = tool_input_dict(input_value)
+    if parsed is None or parsed.get("session_id") is None:
+        return None
+    return str(parsed["session_id"])
+
+
+def command_observation(
+    output: Any,
+    tool_name: str | None,
+    *,
+    explicit_exit_code: int | None = None,
+) -> tuple[str | None, str | None, int | None]:
+    """Return ``(status, runner_session_id, exit_code)`` from one command result."""
+    if tool_name not in PROCESS_ROOT_TOOLS | PROCESS_CONTINUATION_TOOLS:
+        return None, None, None
+    if not isinstance(output, str):
+        output = ""
+    if COMMAND_ABORTED_RE.match(output):
+        return "aborted", None, None
+    if COMMAND_FAILURE_RE.match(output):
+        return "failed", None, None
+    running = PROCESS_RUNNING_RE.search(output)
+    if running:
+        return "running", running.group(1), None
+
+    exit_code = explicit_exit_code
+    if exit_code is None:
+        exit_code = exit_code_from_output(output)
+    if exit_code is not None:
+        return "finished", None, exit_code
+
+    metadata = output_metadata(output)
+    if metadata is not None and isinstance(metadata.get("success"), bool):
+        return "finished", None, None
+
+    if tool_name in PROCESS_CONTINUATION_TOOLS and CONTINUATION_FAILURE_RE.search(output):
+        return "session_error", None, None
+    return None, None, None
 
 
 def add_tool(
@@ -78,6 +168,7 @@ def add_tool(
     tool_name: str | None,
     emitted_at: str | None,
     input_value: Any,
+    process_roots: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     existing = tool_by_id.get(call_id)
     if existing is not None:
@@ -95,6 +186,12 @@ def add_tool(
         "tool_internal_latency_ms": None,
         "is_error": None,
     }
+    if tool_name in PROCESS_CONTINUATION_TOOLS:
+        process_session_id = process_session_from_input(input_value)
+        tool["_process_session_id"] = process_session_id
+        root = process_roots.get(process_session_id) if process_session_id is not None else None
+        if root is not None:
+            tool["continuation_of_tool_call_id"] = root.get("tool_call_id")
     tools.append(tool)
     tool_by_id[call_id] = tool
     return tool
@@ -105,6 +202,10 @@ def apply_tool_output(
     timestamp: str | None,
     output: Any,
     is_error: bool | None,
+    process_roots: dict[str, dict[str, Any]],
+    *,
+    explicit_exit_code: int | None = None,
+    observation_source: str,
 ) -> bool:
     first_result = tool.get("result_at") is None
     if first_result:
@@ -117,6 +218,52 @@ def apply_tool_output(
         tool["tool_internal_latency_ms"] = wall_time_ms_from_output(output)
     if is_error is not None:
         tool["is_error"] = is_error
+
+    status, observed_session_id, exit_code = command_observation(
+        output,
+        tool.get("tool_name"),
+        explicit_exit_code=explicit_exit_code,
+    )
+    if status in ERROR_COMMAND_STATUSES and is_error is None:
+        tool["is_error"] = True
+
+    if observed_session_id is not None:
+        tool["_process_session_id"] = observed_session_id
+    process_session_id = tool.get("_process_session_id")
+
+    if tool.get("tool_name") in PROCESS_ROOT_TOOLS and process_session_id is not None:
+        process_roots[process_session_id] = tool
+    root = (
+        process_roots.get(process_session_id)
+        if isinstance(process_session_id, str)
+        else None
+    )
+    if root is not None and tool.get("tool_name") in PROCESS_CONTINUATION_TOOLS:
+        tool["continuation_of_tool_call_id"] = root.get("tool_call_id")
+
+    # A model-facing function result has higher priority than the runner's exec_command_end event.
+    # This resolves the race where exec_command_end says the OS process has finished, but the result
+    # returned to the model says it must continue through write_stdin. Within the same priority,
+    # a terminal status is monotonic so a replayed "running" result cannot undo it.
+    if status is not None:
+        source_priority = 2 if observation_source.endswith("function_call_output") else 1
+        current_source_priority = tool.get("_command_status_source_priority", -1)
+        current_status = tool.get("command_status")
+        should_replace = (
+            current_status is None
+            or source_priority > current_source_priority
+            or (
+                source_priority == current_source_priority
+                and current_status not in TERMINAL_COMMAND_STATUSES
+            )
+        )
+        if should_replace:
+            tool["command_status"] = status
+            tool["_command_status_source_priority"] = source_priority
+            if exit_code is None:
+                tool.pop("command_exit_code", None)
+            else:
+                tool["command_exit_code"] = exit_code
     return first_result
 
 
@@ -184,6 +331,9 @@ def extract_codex_session(
     segment_timing_events: list[dict[str, Any]] = []
     segment_tools: list[dict[str, Any]] = []
     tool_by_id: dict[str, dict[str, Any]] = {}
+    # Runner process-session id -> originating exec_command tool. Tool dicts remain shared with
+    # already-built round objects, so a terminal write_stdin can back-fill its root call later.
+    process_roots: dict[str, dict[str, Any]] = {}
     # Opt-in raw capture state (parallel to the round-building state above; never merged into it).
     # raw_tool_by_id is NOT reset per round (mirrors tool_by_id) so a tool whose output lands in a
     # later segment still back-fills the same dict referenced by the already-emitted raw entry.
@@ -305,6 +455,7 @@ def extract_codex_session(
                         tool_name=payload.get("name"),
                         emitted_at=timestamp,
                         input_value=payload.get("arguments"),
+                        process_roots=process_roots,
                     )
                     if len(segment_tools) > tool_count:
                         append_timing_event(
@@ -337,6 +488,7 @@ def extract_codex_session(
                         tool_name=payload.get("name"),
                         emitted_at=timestamp,
                         input_value=payload.get("input"),
+                        process_roots=process_roots,
                     )
                     if len(segment_tools) > tool_count:
                         append_timing_event(
@@ -364,7 +516,14 @@ def extract_codex_session(
                 if tool is not None:
                     output = payload.get("output")
                     is_error = infer_error_from_output(output)
-                    if apply_tool_output(tool, timestamp, output, is_error):
+                    if apply_tool_output(
+                        tool,
+                        timestamp,
+                        output,
+                        is_error,
+                        process_roots,
+                        observation_source="function_call_output",
+                    ):
                         append_timing_event(
                             pending_input_events,
                             "tool_result",
@@ -385,7 +544,14 @@ def extract_codex_session(
                 if tool is not None:
                     output = payload.get("output")
                     is_error = infer_error_from_output(output)
-                    if apply_tool_output(tool, timestamp, output, is_error):
+                    if apply_tool_output(
+                        tool,
+                        timestamp,
+                        output,
+                        is_error,
+                        process_roots,
+                        observation_source="custom_tool_call_output",
+                    ):
                         append_timing_event(
                             pending_input_events,
                             "tool_result",
@@ -412,6 +578,9 @@ def extract_codex_session(
                         timestamp,
                         output,
                         is_error,
+                        process_roots,
+                        explicit_exit_code=exit_code if isinstance(exit_code, int) else None,
+                        observation_source="exec_command_end",
                     ):
                         append_timing_event(
                             pending_input_events,
@@ -439,6 +608,8 @@ def extract_codex_session(
                         timestamp,
                         output,
                         is_error,
+                        process_roots,
+                        observation_source="patch_apply_end",
                     ):
                         append_timing_event(
                             pending_input_events,
@@ -461,6 +632,36 @@ def extract_codex_session(
                 last_usage = info.get("last_token_usage")
                 total_usage = info.get("total_token_usage")
                 if not isinstance(last_usage, dict) or not isinstance(total_usage, dict):
+                    continue
+                if current_model is None:
+                    # Subagent rollout files can replay a parent session before
+                    # the child's first turn_context. Those token_count records
+                    # have no attributable model and are not new child LLM
+                    # invocations. Discard their accumulated replay state so it
+                    # cannot leak into the first live child round.
+                    pending_input_events = []
+                    segment_timing_events = []
+                    segment_tools = []
+                    tool_by_id.clear()
+                    process_roots.clear()
+                    if raw_sink is not None:
+                        raw_pending_in = []
+                        raw_segment_out = []
+                        raw_segment_tools = []
+                        raw_tool_by_id.clear()
+                    continue
+                if (
+                    not pending_input_events
+                    and not segment_timing_events
+                    and not segment_tools
+                ):
+                    # Forked/resumed rollout files can replay historical
+                    # token_count events at startup after a turn_context has
+                    # already set current_model. With no input, output, or tool
+                    # activity, this is accounting replay rather than a new LLM
+                    # invocation. Do not advance last_total_sig: a later live
+                    # segment with the same cumulative total must remain
+                    # eligible for extraction.
                     continue
                 total_sig = json.dumps(total_usage, sort_keys=True)
                 if total_sig == last_total_sig:
@@ -544,6 +745,10 @@ def extract_codex_session(
                 segment_timing_events = []
                 segment_tools = []
 
+    # Private extraction-only runner ids/provenance must not enter the normalized schema.
+    for tool in tool_by_id.values():
+        tool.pop("_process_session_id", None)
+        tool.pop("_command_status_source_priority", None)
     return rounds
 
 

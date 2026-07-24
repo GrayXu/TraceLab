@@ -5,16 +5,17 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
 import math
+import sys
 from collections import Counter
 from pathlib import Path
 from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]  # experiment -> category -> artifacts -> repo root
-DEFAULT_INPUT = REPO_ROOT / "trace" / "llm_round_trace.merged.all_users.jsonl"
 DEFAULT_OUT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(REPO_ROOT / "validators"))
+from trace_rows import DEFAULT_DB, iter_rounds  # noqa: E402
 
 
 def safe_float(value: Any) -> float | None:
@@ -161,7 +162,7 @@ def summarize_groups(groups: dict[tuple[Any, ...], dict[str, Any]]) -> dict[str,
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("-i", "--input", type=Path, default=DEFAULT_INPUT)
+    parser.add_argument("--db", type=Path, default=DEFAULT_DB)
     parser.add_argument("-o", "--output-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--top-groups", type=int, default=200)
     args = parser.parse_args()
@@ -175,13 +176,7 @@ def main() -> int:
     exact_groups: Counter[tuple[Any, ...]] = Counter()
     physical_groups: dict[tuple[Any, ...], dict[str, Any]] = {}
 
-    with args.input.open("r", encoding="utf-8", errors="replace") as fh:
-        for line_no, line in enumerate(fh, start=1):
-            if not line.strip():
-                continue
-            row = json.loads(line)
-            if not isinstance(row, dict):
-                continue
+    for line_no, row in iter_rounds(args.db, include_tools=True):
             provider = str(row.get("provider") or "<unknown-provider>")
             tools = row.get("tools")
             if not isinstance(tools, list):
@@ -318,7 +313,7 @@ def main() -> int:
             [
                 "# Tool duplicate audit",
                 "",
-                f"Input: `{args.input}`",
+                f"Input: `{args.db}`",
                 "",
                 "## Definitions",
                 "",

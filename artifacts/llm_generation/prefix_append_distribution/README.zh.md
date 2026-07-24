@@ -48,7 +48,7 @@ uv run python artifacts/llm_generation/prefix_append_distribution/plot.py
 uv run python artifacts/llm_generation/prefix_append_distribution/plot.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/llm_generation/prefix_append_distribution/plot.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/llm_generation/prefix_append_distribution/plot.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 ```
 
 有用的 flag：`--group-by`（`provider` / `model` / `provider_model`）、`--max-groups`（最多绘制的组数，默认 8）、`--pair-sample-size`（散点子采样，默认 80000）。
@@ -63,7 +63,7 @@ uv run python artifacts/llm_generation/prefix_append_distribution/plot.py --db /
 
 这些 PNG 是自包含的——它们内嵌了本 README、各 CSV 以及绘图代码
 （`plot.py` + 共享的 `artifacts/utils/` 模块）。用
-`python artifacts/utils/png_sidecar.py extract <png>` 解包。
+`uv run python artifacts/utils/png_sidecar.py extract <png>` 解包。
 
 ## SyFI result analysis
 

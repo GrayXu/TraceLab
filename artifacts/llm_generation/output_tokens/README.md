@@ -52,7 +52,7 @@ The data layer (parsing, surrogate keys, schema) lives in `artifacts/utils/trace
 
 ```bash
 # against the shared DuckDB built by run_all (no per-script re-parse)
-uv run python artifacts/llm_generation/output_tokens/plot.py --db /tmp/trace.duckdb
+uv run python artifacts/llm_generation/output_tokens/plot.py --db "$TMPDIR/trace.duckdb"
 
 # or straight from a JSONL trace (materialized to a temp cache on first use)
 uv run python artifacts/llm_generation/output_tokens/plot.py -i trace/sample.jsonl
@@ -69,7 +69,7 @@ uv run python artifacts/llm_generation/output_tokens/plot.py -i trace/sample.jso
   plus `sample_count` (= `count`) and `sampled` (always `False`, since the stats are exact).
 
 The PNG is self-contained: it embeds this README, `output_tokens_summary.csv`, and the plotting code
-as compressed text chunks. Unpack with `python artifacts/utils/png_sidecar.py extract <png>`.
+as compressed text chunks. Unpack with `uv run python artifacts/utils/png_sidecar.py extract <png>`.
 
 ## SyFI result analysis
 

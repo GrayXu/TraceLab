@@ -334,7 +334,7 @@ def main() -> int:
 
     con = trace_db.open_from_args(args)
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    input_label = str(args.db) if getattr(args, "db", None) is not None else str(args.input)
+    input_label = str(args.input) if args.input is not None else str(args.db)
 
     # --- over-1h detail rows (DB) ---
     over_1h = fetch_over_1h(con, args.threshold_ms)

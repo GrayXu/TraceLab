@@ -64,7 +64,7 @@ uv run python artifacts/session/session_token_steps/plot.py
 uv run python artifacts/session/session_token_steps/plot.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/session/session_token_steps/plot.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/session/session_token_steps/plot.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 
 # pin exact sessions
 uv run python artifacts/session/session_token_steps/plot.py --session-id <session_id>
@@ -84,7 +84,7 @@ Selection knobs: `--top-sessions`, `--context-sessions`, `--compaction-sessions`
 - `selected_session_token_steps.json` — the exact selection and per-window metrics.
 
 Each PNG embeds this README, the candidate CSV, and `plot.py`. Unpack with
-`python artifacts/utils/png_sidecar.py extract <png>`.
+`uv run python artifacts/utils/png_sidecar.py extract <png>`.
 
 ## SyFI result analysis
 

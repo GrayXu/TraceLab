@@ -9,7 +9,7 @@
 ## 运行方式
 
 ```bash
-uv run python artifacts/llm_generation/append_by_prefix_bin/analyze.py -i trace/syfi_coding_trace.jsonl
+uv run python artifacts/llm_generation/append_by_prefix_bin/analyze.py --db trace/syfi_coding_trace.duckdb
 uv run python artifacts/llm_generation/append_by_prefix_bin/analyze.py        # default merged trace
 ```
 

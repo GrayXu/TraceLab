@@ -30,7 +30,7 @@ import duckdb
 
 EXP_UTILS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = EXP_UTILS_DIR.parents[1]  # artifacts/utils -> artifacts -> repo root
-DEFAULT_INPUT = REPO_ROOT / "trace" / "llm_round_trace.merged.all_users.jsonl"
+DEFAULT_DB = REPO_ROOT / "trace" / "syfi_coding_trace.duckdb"
 
 # Round-level scalar columns kept in ``rounds`` (everything except the two nested lists).
 _NESTED = ("tools", "timing_events")
@@ -74,6 +74,13 @@ _TOOL_FIELDS = (
     ("is_error", "BOOLEAN", "tc.is_error"),
     ("input_chars", "BIGINT", "tc.input_chars"),
     ("result_chars", "BIGINT", "tc.result_chars"),
+    ("continuation_of_tool_call_id", "VARCHAR", "tc.continuation_of_tool_call_id"),
+    ("command_status", "VARCHAR", "tc.command_status"),
+    ("command_exit_code", "BIGINT", "tc.command_exit_code"),
+    ("executables", "VARCHAR[]", "CAST(tc.executables AS VARCHAR[])"),
+    ("executable_parse_status", "VARCHAR", "CAST(tc.executable_parse_status AS VARCHAR)"),
+    ("executable_parse_reason", "VARCHAR", "CAST(tc.executable_parse_reason AS VARCHAR)"),
+    ("command_skeleton", "VARCHAR", "CAST(tc.command_skeleton AS VARCHAR)"),
 )
 _TIMING_FIELDS = (
     ("event_type", "VARCHAR", "te.event_type"),
@@ -345,19 +352,78 @@ def _install_compat_views(con: "duckdb.DuckDBPyConnection") -> None:
     the insertion order of the materialized child rows, so a temp view can reconstruct the same
     1-based per-round index without modifying the read-only release asset.
     """
-    if _has_column(con, "timing_events", "event_index"):
-        return
-
     db = _ident(_primary_database_name(con))
-    con.execute(
-        f"""
-        CREATE TEMP VIEW timing_events AS
-        SELECT
-          row_number() OVER (PARTITION BY round_pk ORDER BY rowid) AS event_index,
-          *
-        FROM {db}.timing_events
-        """
-    )
+    if not _has_column(con, "timing_events", "event_index"):
+        con.execute(
+            f"""
+            CREATE TEMP VIEW timing_events AS
+            SELECT
+              row_number() OVER (PARTITION BY round_pk ORDER BY rowid) AS event_index,
+              *
+            FROM {db}.timing_events
+            """
+        )
+
+    # Command-continuation fields were simplified after their first release. For DBs with the old
+    # process-oriented columns, derive the new per-call facts in a compatibility view. Earlier DBs
+    # with no continuation data receive nullable columns.
+    missing = [
+        name
+        for name in (
+            "continuation_of_tool_call_id",
+            "command_status",
+            "command_exit_code",
+            "executables",
+            "executable_parse_status",
+            "executable_parse_reason",
+            "command_skeleton",
+        )
+        if not _has_column(con, "tool_calls", name)
+    ]
+    if missing:
+        has_old_link = _has_column(con, "tool_calls", "root_tool_call_id")
+        has_old_status = _has_column(con, "tool_calls", "process_state")
+        has_old_exit = _has_column(con, "tool_calls", "process_exit_code")
+        has_old_session = _has_column(con, "tool_calls", "process_session_id")
+        derived: dict[str, str] = {
+            "continuation_of_tool_call_id": (
+                "CASE WHEN tool_name = 'write_stdin' THEN root_tool_call_id END"
+                if has_old_link
+                else "CAST(NULL AS VARCHAR)"
+            ),
+            "command_status": (
+                "CASE "
+                "WHEN tool_name = 'exec_command' AND process_session_id IS NOT NULL "
+                "THEN 'running' "
+                "WHEN process_state = 'exited' THEN 'finished' "
+                "WHEN process_state = 'continuation_error' THEN 'session_error' "
+                "ELSE process_state END"
+                if has_old_status and has_old_session
+                else (
+                    "CASE "
+                    "WHEN process_state = 'exited' THEN 'finished' "
+                    "WHEN process_state = 'continuation_error' THEN 'session_error' "
+                    "ELSE process_state END"
+                    if has_old_status
+                    else "CAST(NULL AS VARCHAR)"
+                )
+            ),
+            "command_exit_code": (
+                "CASE "
+                "WHEN tool_name = 'exec_command' AND process_session_id IS NOT NULL THEN NULL "
+                "ELSE process_exit_code END"
+                if has_old_exit and has_old_session
+                else ("process_exit_code" if has_old_exit else "CAST(NULL AS BIGINT)")
+            ),
+            "executables": "CAST(NULL AS VARCHAR[])",
+            "executable_parse_status": "CAST(NULL AS VARCHAR)",
+            "executable_parse_reason": "CAST(NULL AS VARCHAR)",
+            "command_skeleton": "CAST(NULL AS VARCHAR)",
+        }
+        additions = ", ".join(
+            f"{derived[name]} AS {_ident(name)}" for name in missing
+        )
+        con.execute(f"CREATE TEMP VIEW tool_calls AS SELECT *, {additions} FROM {db}.tool_calls")
 
 
 def connect(db_path, *, read_only: bool = True) -> "duckdb.DuckDBPyConnection":
@@ -374,12 +440,12 @@ def raw_connect(db_path, *, read_only: bool = True) -> "duckdb.DuckDBPyConnectio
 def add_db_args(parser: argparse.ArgumentParser, *, default_output_dir: Path | None = None) -> argparse.ArgumentParser:
     """Uniform I/O surface for every experiment: --db | -i/--input, plus -o/--output-dir."""
     parser.add_argument(
-        "-i", "--input", type=Path, default=DEFAULT_INPUT,
-        help="normalized JSONL trace (materialized to a temp DuckDB if --db is not given)",
+        "-i", "--input", type=Path, default=None,
+        help="optional normalized JSONL override; materialized to a temporary DuckDB",
     )
     parser.add_argument(
-        "--db", type=Path, default=None,
-        help="prebuilt DuckDB (from trace_db.materialize / run_all's build-db); skips materialize",
+        "--db", type=Path, default=DEFAULT_DB,
+        help=f"prebuilt DuckDB (default: {DEFAULT_DB})",
     )
     parser.add_argument(
         "-o", "--output-dir", type=Path, default=default_output_dir,
@@ -389,16 +455,16 @@ def add_db_args(parser: argparse.ArgumentParser, *, default_output_dir: Path | N
 
 
 def open_from_args(args) -> "duckdb.DuckDBPyConnection":
-    """Open the trace DB for an experiment: use --db if given, else materialize -i to a temp cache."""
+    """Open the explicit JSONL override, otherwise the requested/default trace DB."""
     out = getattr(args, "output_dir", None)
     if out is not None:
         Path(out).mkdir(parents=True, exist_ok=True)
 
-    db = getattr(args, "db", None)
-    if db is not None:
-        return connect(db, read_only=True)
+    input_path = getattr(args, "input", None)
+    if input_path is None:
+        return connect(Path(args.db), read_only=True)
 
-    trace = Path(args.input)
+    trace = Path(input_path)
     cache = _cache_db_path(trace)
     fresh = cache.exists() and cache.stat().st_mtime >= trace.stat().st_mtime
     if not fresh:

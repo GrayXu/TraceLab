@@ -81,9 +81,21 @@ re-add as a single JSON column only if an experiment truly needs it).
 | `is_error` | BOOLEAN | |
 | `input_chars` | BIGINT | |
 | `result_chars` | BIGINT | |
+| `continuation_of_tool_call_id` | VARCHAR | initial `exec_command.tool_call_id`; present only on linked `write_stdin` calls |
+| `command_status` | VARCHAR | `running` \| `finished` \| `aborted` \| `failed` \| `session_error`; only for `exec_command` / `write_stdin` results |
+| `command_exit_code` | BIGINT | present when that specific result reports completion with an exit code |
+| `executables` | VARCHAR[] | ordered executable occurrences for command-launch calls; public/common names remain visible and all other names become stable `custom_N` labels |
+| `executable_parse_status` | VARCHAR | `success` \| `partial` \| `failed`; null for non-command tools |
+| `executable_parse_reason` | VARCHAR | short reason for partial/failed extraction, otherwise null |
+| `command_skeleton` | VARCHAR | privacy-safe executable/operator structure with arguments removed; empty when unavailable |
 
 **Effective tool latency** = `internal` if present else `wall` (legacy `latency_ms` is not in the
 normalized data). Use the shared fragment `trace_db.EFFECTIVE_TOOL_LATENCY_MS_SQL`.
+
+For a Codex `exec_command` that yields a running command, `tool_*_latency_ms` still describes only
+that individual tool interaction. Use `command_chains.command_chains(con)` to derive one row per
+initial command, including the first observed finish, wall time until that finish, and the separate
+sum of linked tool-call time.
 
 ### `timing_events` — one row per timing event (FK `round_pk`)
 
@@ -120,7 +132,7 @@ source to fill its `input_preview` column — without a separate `-i`. (A shippe
 
 ```bash
 # materialize + print table counts
-uv run python artifacts/utils/trace_db.py trace/sample.jsonl /tmp/trace.duckdb
+uv run python artifacts/utils/trace_db.py trace/sample.jsonl "$TMPDIR/trace.duckdb"
 ```
 
 In an experiment:

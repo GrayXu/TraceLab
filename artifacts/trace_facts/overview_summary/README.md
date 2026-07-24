@@ -75,7 +75,7 @@ uv run python artifacts/trace_facts/overview_summary/analyze.py --json > summary
 uv run python artifacts/trace_facts/overview_summary/analyze.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this)
-uv run python artifacts/trace_facts/overview_summary/analyze.py --db /tmp/trace.duckdb --json
+uv run python artifacts/trace_facts/overview_summary/analyze.py --db "$TMPDIR/trace.duckdb" --json
 ```
 
 `-o/--output-dir` is accepted (shared I/O surface) but unused here — no files are written.

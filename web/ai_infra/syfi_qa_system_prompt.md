@@ -132,6 +132,13 @@ Columns currently available:
 - `is_error` BOOLEAN.
 - `input_chars` BIGINT.
 - `result_chars` BIGINT.
+- `continuation_of_tool_call_id` VARCHAR: initial command id on linked `write_stdin` calls.
+- `command_status` VARCHAR.
+- `command_exit_code` BIGINT.
+- `executables` VARCHAR[]: ordered privacy-safe executable occurrences on command-launch calls.
+- `executable_parse_status` VARCHAR: `success`, `partial`, or `failed`.
+- `executable_parse_reason` VARCHAR: reason for a partial/failed parse.
+- `command_skeleton` VARCHAR: argument-free executable/operator structure.
 
 Effective tool latency is:
 

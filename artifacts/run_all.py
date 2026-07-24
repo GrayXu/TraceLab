@@ -6,12 +6,12 @@ up to ``--jobs`` at a time (default 16). Each experiment writes its outputs into
 own folder; this script just invokes them with the right input flag, captures each
 one's console output to a per-experiment log file, and reports pass/fail + duration.
 
-The registry below is the manifest of all experiments and how each is launched —
-some take ``-i``, some ``--input``, a few read a module-level ``INPUT`` default,
-``csv_export`` needs ``-i``/``-o``, ``overview_summary`` prints to stdout (captured to
-``summary.json``), ``timing_fit/build_trace`` derives the local timing CSV from the
-JSONL trace, and ``build_summary`` post-processes ``timing_feature_ambiguity``'s
-outputs (so it is scheduled only after that experiment succeeds).
+The registry below is the manifest of all experiments and how each is launched.
+DB-backed experiments receive ``--db``; ``csv_export`` additionally needs an output,
+``overview_summary`` prints to stdout (captured to ``summary.json``),
+``timing_fit/build_trace`` derives the local timing CSV from the DuckDB trace, and
+dependency-aware multi-step artifacts such as
+``bash_command_breakdown`` are scheduled in their required order.
 
 Examples
 --------
@@ -19,7 +19,7 @@ Examples
     uv run python artifacts/run_all.py
 
     # rebuild a compact DuckDB from JSONL first, then run everything against it
-    uv run python artifacts/run_all.py --build-db --input trace/syfi_coding_trace.jsonl --db trace/syfi_coding_trace.duckdb
+    uv run python artifacts/run_all.py --build-db --input trace/syfi_coding_trace.jsonl.gz --db trace/syfi_coding_trace.duckdb
 
     # serial, or a different width
     uv run python artifacts/run_all.py --jobs 1
@@ -50,7 +50,7 @@ from pathlib import Path
 
 ARTIFACTS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = ARTIFACTS_DIR.parent
-DEFAULT_JSONL = Path("trace") / "syfi_coding_trace.jsonl"
+DEFAULT_JSONL = Path("trace") / "syfi_coding_trace.jsonl.gz"
 DEFAULT_DB = Path("trace") / "syfi_coding_trace.duckdb"
 DEFAULT_TIMING = ARTIFACTS_DIR / "llm_generation" / "timing_fit" / "timing_fit_trace.csv"
 DEFAULT_JOBS = 16
@@ -67,31 +67,20 @@ def repo_relative(path: Path) -> Path:
     """Resolve relative CLI paths against the repository root."""
     return path if path.is_absolute() else REPO_ROOT / path
 
-# Shim used to drive experiments whose input is a module-level INPUT global
-# (they have no -i/--input flag): import the script, override INPUT, call main().
-GLOBAL_SHIM = (
-    "import sys, pathlib, importlib.util as u\n"
-    "script = pathlib.Path(sys.argv[1]).resolve()\n"
-    "inp = pathlib.Path(sys.argv[2]).resolve()\n"
-    "sys.path.insert(0, str(script.parent))\n"
-    "spec = u.spec_from_file_location('exp_module', script)\n"
-    "mod = u.module_from_spec(spec)\n"
-    "sys.modules[spec.name] = mod\n"  # needed so @dataclass et al. can resolve the module
-    "spec.loader.exec_module(mod)\n"
-    "mod.INPUT = inp\n"
-    "rc = mod.main()\n"
-    "sys.exit(rc if isinstance(rc, int) else 0)\n"
-)
-
-
 @dataclass(frozen=True)
 class Experiment:
     category: str
     name: str
     script: str           # path relative to artifacts/
-    style: str            # "-i" | "--input" | "global" | "io" | "stdout" | "none" | "timing-build" | "db-build"
+    style: str            # "-i" | "--input" | "direct" | "io" | "stdout" | "none" | "timing-build" | "db-build"
     data: str = "jsonl"   # "jsonl" -> merged trace, "timing" -> timing CSV, "db" -> trace DuckDB (--db)
-    after: str = ""       # name of an experiment that must finish first (same-process dep)
+    after: str | tuple[str, ...] = ""  # experiment name(s) that must finish first
+
+
+def dependencies(experiment: Experiment) -> tuple[str, ...]:
+    if isinstance(experiment.after, str):
+        return (experiment.after,) if experiment.after else ()
+    return experiment.after
 
 
 # Order is informational; scheduling is by dependency + free worker slots.
@@ -113,14 +102,27 @@ EXPERIMENTS: list[Experiment] = [
     Experiment("llm_generation", "timing_fit", "llm_generation/timing_fit/fit_timing_trace.py", "-i", "timing", after=TIMING_BUILD_NAME),
     Experiment("llm_generation", "timing_feature_ambiguity", "llm_generation/timing_feature_ambiguity/analyze.py", "-i", "timing", after="timing_fit"),
     Experiment("llm_generation", "timing_feature_ambiguity/build_summary", "llm_generation/timing_feature_ambiguity/build_summary.py", "none", "jsonl", after="timing_feature_ambiguity"),
-    Experiment("llm_generation", "token_spindles", "llm_generation/token_spindles/plot.py", "global", "db", after=BUILD_DB_NAME),
+    Experiment("llm_generation", "token_spindles", "llm_generation/token_spindles/plot.py", "direct", "db", after=BUILD_DB_NAME),
     # tool_calls -----------------------------------------------------------
     Experiment("tool_calls", "tool_latency_distribution", "tool_calls/tool_latency_distribution/plot.py", "-i", "db", after=BUILD_DB_NAME),
     Experiment("tool_calls", "tool_call_counts", "tool_calls/tool_call_counts/plot.py", "-i", "db", after=BUILD_DB_NAME),
     Experiment("tool_calls", "tool_time_by_kind", "tool_calls/tool_time_by_kind/plot.py", "-i", "db", after=BUILD_DB_NAME),
-    Experiment("tool_calls", "tool_category_distribution", "tool_calls/tool_category_distribution/analyze.py", "global", "db", after=BUILD_DB_NAME),
+    Experiment("tool_calls", "tool_category_distribution", "tool_calls/tool_category_distribution/analyze.py", "direct", "db", after=BUILD_DB_NAME),
     Experiment("tool_calls", "claude_long_tool_calls", "tool_calls/claude_long_tool_calls/analyze.py", "-i", "db", after=BUILD_DB_NAME),
     Experiment("tool_calls", "codex_wall_internal_gap", "tool_calls/codex_wall_internal_gap/analyze.py", "-i", "db", after=BUILD_DB_NAME),
+    # bash_command_breakdown is a dependency-ordered artifact pipeline. The exporter must finish
+    # before its command_calls.jsonl consumers, while command_stats also needs tool_time_by_kind.
+    Experiment("tool_calls", "bash_command_breakdown/classify_commands", "tool_calls/bash_command_breakdown/classify_commands.py", "-i", "db", after=BUILD_DB_NAME),
+    Experiment("tool_calls", "bash_command_breakdown/popularity", "tool_calls/bash_command_breakdown/analyze_popularity.py", "none", after="bash_command_breakdown/classify_commands"),
+    Experiment("tool_calls", "bash_command_breakdown/executable_runtime", "tool_calls/bash_command_breakdown/analyze_executable_runtime.py", "none", after="bash_command_breakdown/classify_commands"),
+    Experiment("tool_calls", "bash_command_breakdown/executable_runtime_updated", "tool_calls/bash_command_breakdown/analyze_executable_runtime_updated.py", "-i", "db", after="bash_command_breakdown/classify_commands"),
+    Experiment(
+        "tool_calls",
+        "bash_command_breakdown/command_stats",
+        "tool_calls/bash_command_breakdown/analyze_command_stats.py",
+        "none",
+        after=("bash_command_breakdown/classify_commands", "tool_time_by_kind"),
+    ),
     # prefix_cache ---------------------------------------------------------
     Experiment("prefix_cache", "cache_hit_ratio", "prefix_cache/cache_hit_ratio/analyze.py", "-i", "db", after=BUILD_DB_NAME),
     Experiment("prefix_cache", "redundant_prefill", "prefix_cache/redundant_prefill/analyze.py", "-i", "db", after=BUILD_DB_NAME),
@@ -135,7 +137,7 @@ EXPERIMENTS: list[Experiment] = [
     # human_in_the_loop ----------------------------------------------------
     Experiment("human_in_the_loop", "human_input_wait", "human_in_the_loop/human_input_wait/plot.py", "-i", "db", after=BUILD_DB_NAME),
     Experiment("human_in_the_loop", "user_turn_response_time", "human_in_the_loop/user_turn_response_time/analyze.py", "-i", "db", after=BUILD_DB_NAME),
-    Experiment("human_in_the_loop", "user_turn_decomposition", "human_in_the_loop/user_turn_decomposition/analyze.py", "global", "db", after=BUILD_DB_NAME),
+    Experiment("human_in_the_loop", "user_turn_decomposition", "human_in_the_loop/user_turn_decomposition/analyze.py", "direct", "db", after=BUILD_DB_NAME),
     # trace_facts ----------------------------------------------------------
     Experiment("trace_facts", "overview_summary", "trace_facts/overview_summary/analyze.py", "stdout", "db", after=BUILD_DB_NAME),
     Experiment("trace_facts", "csv_export", "trace_facts/csv_export/convert.py", "io", "db", after=BUILD_DB_NAME),
@@ -171,11 +173,10 @@ def build_command(exp: Experiment, python: str, jsonl: Path, timing: Path, db: P
 
     if exp.style == "none":
         return [python, str(script)], None
-    if exp.style == "global":
-        # No input flag: db-backed scripts accept --db directly; others go through the INPUT shim.
-        if src is not None:
-            return [python, str(script), *src], None
-        return [python, "-c", GLOBAL_SHIM, str(script), str(inp)], None
+    if exp.style == "direct":
+        if src is None:
+            raise ValueError(f"direct-style experiment must be DB-backed: {exp.name}")
+        return [python, str(script), *src], None
     if exp.style == "io":
         out = script_dir / "coding_trace.csv"
         return [python, str(script), *(src or ["-i", str(inp)]), "-o", str(out)], None
@@ -190,11 +191,7 @@ def build_command(exp: Experiment, python: str, jsonl: Path, timing: Path, db: P
 
 
 def display_command(exp: Experiment, cmd: list[str], redirect: Path | None) -> str:
-    if len(cmd) > 2 and cmd[1] == "-c":  # global-shim: cmd is [python, -c, <shim>, script, input]
-        parts = [cmd[0], "-c", "<global-shim>", *cmd[3:]]
-    else:
-        parts = cmd
-    shown = " ".join(shlex.quote(c) for c in parts)
+    shown = " ".join(shlex.quote(command_part) for command_part in cmd)
     return shown + (f"  > {redirect}" if redirect else "")
 
 
@@ -223,17 +220,20 @@ def select_with_dependencies(only: str | None, *, skip_timing_build: bool, inclu
     while changed:
         changed = False
         for exp in list(selected.values()):
-            if not exp.after:
-                continue
-            if skip_timing_build and exp.after == TIMING_BUILD_NAME:
-                continue
-            dep = by_name.get(exp.after)
-            if dep is not None and dep.name == BUILD_DB_NAME and not include_db_build:
-                continue
-            if dep is None or dep.name in selected:
-                continue
-            selected[dep.name] = dep
-            changed = True
+            for dependency_name in dependencies(exp):
+                if skip_timing_build and dependency_name == TIMING_BUILD_NAME:
+                    continue
+                dependency = by_name.get(dependency_name)
+                if (
+                    dependency is not None
+                    and dependency.name == BUILD_DB_NAME
+                    and not include_db_build
+                ):
+                    continue
+                if dependency is None or dependency.name in selected:
+                    continue
+                selected[dependency.name] = dependency
+                changed = True
 
     return [exp for exp in EXPERIMENTS if exp.name in selected]
 
@@ -251,13 +251,18 @@ def schedule(selected, *, jobs, python, jsonl, timing, db, log_dir, stop_on_fail
     results: list[tuple[Experiment, int, float]] = []
     stop = False
 
-    def dep_state(e: Experiment):
+    def dep_state(experiment: Experiment):
         """True = ready, False = dependency failed, None = waiting on dependency."""
-        if not e.after or e.after not in selected_names:
+        selected_dependencies = [
+            dependency_name
+            for dependency_name in dependencies(experiment)
+            if dependency_name in selected_names
+        ]
+        if not selected_dependencies:
             return True
-        if e.after not in completed:
+        if any(dependency_name not in completed for dependency_name in selected_dependencies):
             return None
-        return completed[e.after] == 0
+        return all(completed[dependency_name] == 0 for dependency_name in selected_dependencies)
 
     def launch(e: Experiment):
         cmd, redirect = build_command(e, python, jsonl, timing, db)
@@ -285,7 +290,17 @@ def schedule(selected, *, jobs, python, jsonl, timing, db, log_dir, stop_on_fail
             if state is False:
                 completed[e.name] = RC_SKIPPED
                 results.append((e, RC_SKIPPED, 0.0))
-                print(f"[skip] {e.category}/{e.name} (dependency {e.after} failed)", file=sys.stderr, flush=True)
+                failed_dependencies = ", ".join(
+                    dependency_name
+                    for dependency_name in dependencies(e)
+                    if completed.get(dependency_name) != 0
+                )
+                print(
+                    f"[skip] {e.category}/{e.name} "
+                    f"(dependency failed: {failed_dependencies})",
+                    file=sys.stderr,
+                    flush=True,
+                )
                 continue
             popen, lp, handles = launch(e)
             running[e.name] = (popen, e, time.monotonic(), lp, handles)
@@ -342,7 +357,7 @@ def main() -> int:
         default=None,
         help=(
             "Existing timing-segment CSV for timing experiments. If omitted, "
-            f"run_all builds and uses {DEFAULT_TIMING} from --input."
+            f"run_all builds and uses {DEFAULT_TIMING} from --db."
         ),
     )
     parser.add_argument("-j", "--jobs", type=int, default=DEFAULT_JOBS, help=f"max experiments to run concurrently (default {DEFAULT_JOBS})")
@@ -369,7 +384,16 @@ def main() -> int:
     if args.list:
         selected_names = {e.name for e in selected}
         for e in selected:
-            dep = f"  after={e.after}" if e.after and e.after in selected_names else ""
+            selected_dependencies = [
+                dependency_name
+                for dependency_name in dependencies(e)
+                if dependency_name in selected_names
+            ]
+            dep = (
+                f"  after={','.join(selected_dependencies)}"
+                if selected_dependencies
+                else ""
+            )
             print(f"{e.category:<18} {e.name:<38} [{e.style}, {e.data}]{dep}")
         return 0
 
@@ -398,7 +422,8 @@ def main() -> int:
 
     args.log_dir.mkdir(parents=True, exist_ok=True)
     print(f"Dispatcher: {len(selected)} experiment(s), up to {jobs} at a time", file=sys.stderr)
-    print(f"  jsonl   = {args.input}", file=sys.stderr)
+    if args.build_db:
+        print(f"  jsonl   = {args.input}", file=sys.stderr)
     print(f"  timing  = {timing_input}", file=sys.stderr)
     print(f"  db      = {db_path}", file=sys.stderr)
     print(f"  logs    = {args.log_dir}", file=sys.stderr)

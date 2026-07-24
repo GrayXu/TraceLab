@@ -23,15 +23,14 @@ Generated outputs are ignored by git; validator code and `README.md` files are t
 
 ## Running
 
-Use the same normalized JSONL input that was used for the artifact suite. For public
-reporting, prefer the sanitized trace.
+Use the same DuckDB database as the artifact suite.
 
 ```bash
 uv run python validators/run_all.py
 uv run python validators/run_all.py --list
 uv run python validators/run_all.py --only human_in_the_loop
 uv run python validators/run_all.py --only trace_facts/tool_duplicate_audit
-uv run python validators/run_all.py --input trace/llm_round_trace.public.jsonl
+uv run python validators/run_all.py --db trace/syfi_coding_trace.duckdb
 ```
 
 The dispatcher runs validators four at a time by default, captures console output under

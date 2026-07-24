@@ -56,7 +56,7 @@ uv run python artifacts/tool_calls/tool_category_distribution/analyze.py
 uv run python artifacts/tool_calls/tool_category_distribution/analyze.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/tool_calls/tool_category_distribution/analyze.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/tool_calls/tool_category_distribution/analyze.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 ```
 
 ## 输出
@@ -75,7 +75,7 @@ uv run python artifacts/tool_calls/tool_category_distribution/analyze.py --db /t
 - `result_analysis.md`——生成的运行日志。
 
 这些 PNG 是自包含的——每张都嵌入了本 README、CSV 以及绘图代码。用
-`python artifacts/utils/png_sidecar.py extract <png>` 解包。
+`uv run python artifacts/utils/png_sidecar.py extract <png>` 解包。
 
 ## SyFI result analysis
 

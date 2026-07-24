@@ -78,21 +78,29 @@ Turn your local Claude/Codex history into a shareable, sanitized trace and regen
 every figure:
 
 ```bash
-# 1. Collect a fresh private normalized trace
+collection_id="20260724-100b"
+collection_directory="trace/collections/${collection_id}"
+
+# 1. Collect a private normalized trace (existing history is retained)
 uv run python scripts/collect_llm_traces.py \
-  --extract-rounds trace/llm_round_trace.jsonl --fresh-extract
+  --extract-rounds "${collection_directory}/merged.private.jsonl"
 
 # 2. Sanitize it (pseudonymize ids, strip local paths & tool inputs)
 uv run python scripts/sanitize_round_trace.py \
-  trace/llm_round_trace.jsonl -o trace/llm_round_trace.public.jsonl
+  "${collection_directory}/merged.private.jsonl" \
+  -o "${collection_directory}/merged.public.jsonl"
 
-# 3. Regenerate all analysis artifacts
+# 3. Materialize the sanitized trace once
+uv run python artifacts/utils/trace_db.py \
+  "${collection_directory}/merged.public.jsonl" \
+  "${collection_directory}/merged.public.duckdb"
+
+# 4. Regenerate every analysis from DuckDB
 uv run python artifacts/run_all.py \
-  --build-db --input trace/llm_round_trace.public.jsonl \
-  --db trace/llm_round_trace.public.duckdb
+  --db "${collection_directory}/merged.public.duckdb"
 
-# 4. Run validation / audit checks
-uv run python validators/run_all.py --input trace/llm_round_trace.public.jsonl
+# 5. Run validator analyses from the same DuckDB
+uv run python validators/run_all.py --db "${collection_directory}/merged.public.duckdb"
 ```
 
 > Prefer a UI? Drag a trace export into the [web app](#-web-app) and get the same
@@ -155,11 +163,13 @@ curl -L --fail -o trace/syfi_coding_trace.duckdb \
   https://github.com/uw-syfi/TraceLab/releases/latest/download/syfi_coding_trace.duckdb
 ```
 
-Decompress when a JSONL input is needed:
+Use DuckDB for analysis. If another tool specifically requires JSONL, decompress into `$TMPDIR`
+instead of creating a loose file at the `trace/` root:
 
 ```bash
-gzip -dk trace/syfi_coding_trace.jsonl.gz
-uv run python artifacts/trace_facts/overview_summary/analyze.py -i trace/syfi_coding_trace.jsonl
+uv run python artifacts/trace_facts/overview_summary/analyze.py \
+  --db trace/syfi_coding_trace.duckdb
+gzip -cd trace/syfi_coding_trace.jsonl.gz > "$TMPDIR/syfi_coding_trace.jsonl"
 ```
 
 </details>
@@ -213,18 +223,30 @@ uv run python scripts/collect_llm_traces.py --extract-rounds
 uv run python scripts/collect_llm_traces.py --all-user --extract-rounds
 
 # Sudo-backed all-user collection that keeps outputs owned by the launching user
-scripts/collect_all_users_sudo.sh --sanitize
+collection_id="20260724-100b"
+scripts/collect_all_users_sudo.sh \
+  --collection-id "$collection_id" \
+  --fresh-extract
 ```
+
+For a multi-host corpus refresh, write each host's fresh extraction into one shared collection ID,
+such as `20260724-100b`, under `trace/collections/<collection_id>/`. Then merge the historical private archive first and
+the fresh host snapshots afterward with `scripts/merge_round_traces.py`. The newest copy of
+`(provider, session_id, round_id)` wins, so rounds are re-normalized without losing history whose
+original local session files have been deleted.
 </details>
 
 <details>
 <summary><b>What sanitization does</b></summary>
 
-`sanitize_round_trace.py` rewrites session, round, turn, tool-call, project, and user
-identifiers with stable pseudorandom replacements. It removes local context fields such as
-`home`, `cwd`, `workdir`, `session_file`, and path-like keys, and drops `tools[].input`
-entirely while preserving `input_chars`. Distinct-user counts remain available through
-pseudonymous `user` values.
+`sanitize_round_trace.py` rewrites session, round, turn, tool-call, process-session, project, and
+user identifiers with stable pseudorandom replacements. Continuation-to-root relationships remain
+joinable through the pseudonymous ids. It removes local context fields such as `home`, `cwd`,
+`workdir`, `session_file`, and path-like keys, and drops `tools[].input` entirely while preserving
+`input_chars`. Before dropping command inputs, it extracts an ordered executable list, parse
+status/reason, and structural command skeleton. Explicitly reviewed public/common names remain
+visible; all other executable names become stable `custom_N` labels within the sanitized trace.
+Distinct-user counts remain available through pseudonymous `user` values.
 </details>
 
 <details>
@@ -232,6 +254,7 @@ pseudonymous `user` values.
 
 - `collect_llm_traces.py` — scan Claude/Codex local history, count sessions, optionally write normalized round traces.
 - `collect_all_users_sudo.sh` — sudo-friendly wrapper for all-user extraction.
+- `merge_round_traces.py` — union historical private traces by stable round identity; newer inputs win.
 - `extract_claude_rounds.py` / `extract_codex_rounds.py` — convert provider JSONL sessions into normalized round rows.
 - `sanitize_round_trace.py` — remove public-release-sensitive fields.
 - `find_representative_session_segments.py` — find compact raw-session windows for examples.
@@ -278,8 +301,8 @@ data, and the plotting code as compressed PNG text chunks (CSVs are still writte
 normally). Inspect or unpack any figure with the helper:
 
 ```bash
-python artifacts/utils/png_sidecar.py list    <figure>.png
-python artifacts/utils/png_sidecar.py extract <figure>.png -o ./unpacked
+uv run python artifacts/utils/png_sidecar.py list    <figure>.png
+uv run python artifacts/utils/png_sidecar.py extract <figure>.png -o "$TMPDIR/unpacked"
 ```
 </details>
 
@@ -287,14 +310,14 @@ python artifacts/utils/png_sidecar.py extract <figure>.png -o ./unpacked
 <summary><b>Timing-fit family</b> — local derived timing CSV</summary>
 
 The timing-fit family owns its derived timing-segment CSV locally. `artifacts/run_all.py`
-builds `artifacts/llm_generation/timing_fit/timing_fit_trace.csv` from the selected JSONL
+builds `artifacts/llm_generation/timing_fit/timing_fit_trace.csv` from the selected DuckDB
 trace before running timing analyses. Use `--timing-input` only when you intentionally want
-to consume an existing external timing CSV instead of deriving one from `--input`. To build
+to consume an existing external timing CSV instead of deriving one from `--db`. To build
 the local timing CSV directly:
 
 ```bash
 uv run python artifacts/llm_generation/timing_fit/collect_timing_fit_trace.py \
-  -i trace/llm_round_trace.jsonl
+  --db trace/syfi_coding_trace.duckdb
 ```
 </details>
 
@@ -309,7 +332,7 @@ uv run python validators/run_all.py
 uv run python validators/run_all.py --list
 uv run python validators/run_all.py --only human_in_the_loop
 uv run python validators/run_all.py --only trace_facts/tool_duplicate_audit
-uv run python validators/run_all.py --input trace/llm_round_trace.public.jsonl
+uv run python validators/run_all.py --db trace/syfi_coding_trace.duckdb
 ```
 
 ---
@@ -354,7 +377,12 @@ timing list, and nested tool metadata.
   `tools[].input` and keep only `input_chars`.
 - `tools[]` includes `tool_name`, `tool_call_id`, `emitted_at`, `input_chars`,
   `result_chars`, `tool_wall_latency_ms`, `tool_internal_latency_ms`, `is_error`, and
-  `result_at`. Full tool outputs are not stored — content is summarized by `result_chars`.
+  `result_at`. Codex `exec_command` / `write_stdin` results may additionally carry
+  `command_status` and `command_exit_code`; `write_stdin` carries
+  `continuation_of_tool_call_id` when it can be linked to the initial `exec_command`. Sanitized
+  command-launch calls also carry `executables`, `executable_parse_status`,
+  `executable_parse_reason`, and `command_skeleton`. Full tool
+  outputs are not stored — content is summarized by `result_chars`.
 </details>
 
 <details>
@@ -381,10 +409,14 @@ Tool latency is split into two fields:
 - `tool_wall_latency_ms` — trace-observed wall latency, computed as `result_at - emitted_at`.
 - `tool_internal_latency_ms` — tool/runner-reported duration when available (Codex wrapper
   `Wall time` or Claude `durationMs` / `durationSeconds`); otherwise `null`.
-
 Analyses use `tool_internal_latency_ms` when present, then fall back to
 `tool_wall_latency_ms`. The CSV exporter uses `tool_wall_latency_ms` for
 `tool_wait_after_ms` by default.
+
+Codex command lifecycle values are derived, not stored. The shared
+`artifacts/utils/command_chains.py` utility links continuations and computes both elapsed wall time
+through the first `finished` result and summed per-call tool time. Those quantities are not equal:
+the per-call sum excludes gaps between polls and may overlap when calls run in parallel.
 
 For LLM-side latency, use `timing_events[]` rather than a first/last timestamp pair. The
 usual proxy for "input ready → next tool input" is the latest `user_message` or

@@ -1165,7 +1165,7 @@ def main() -> int:
     con = trace_db.open_from_args(args)
     output_dir = args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
-    input_label = str(args.db) if getattr(args, "db", None) is not None else str(args.input)
+    input_label = str(args.input) if args.input is not None else str(args.db)
 
     category_stats, tool_stats, raw_tool_counts = scan_trace(con)
     rows = category_rows(category_stats)

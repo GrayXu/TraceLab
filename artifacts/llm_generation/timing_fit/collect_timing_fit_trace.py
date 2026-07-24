@@ -43,7 +43,6 @@ REPO_ROOT = SCRIPT_DIR.parents[2]  # timing_fit -> llm_generation -> artifacts -
 sys.path.insert(0, str(REPO_ROOT / "artifacts" / "utils"))
 import trace_db  # noqa: E402
 
-DEFAULT_INPUT = REPO_ROOT / "trace" / "llm_round_trace.merged.all_users.jsonl"
 DEFAULT_OUTPUT = SCRIPT_DIR / "timing_fit_trace.csv"
 
 # Timestamps are pulled from the DB as integer epoch-microseconds (epoch_us) rather than as a raw
@@ -460,20 +459,20 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     # This collector emits a single CSV FILE, so it keeps its own ``-o/--output`` (a file path)
     # rather than the shared ``-o/--output-dir``. From the trace_db surface we add only ``--db``
-    # (prebuilt DuckDB, used by run_all's build-db) and ``-i/--input`` (a JSONL trace materialized
-    # to a temp cache). run_all's timing-build invokes this as ``-i <jsonl> -o <timing_csv>``.
+    # (prebuilt DuckDB, used by run_all) and ``-i/--input`` (a compatibility JSONL override
+    # materialized to a temp cache). run_all's timing-build invokes this with ``--db``.
     parser.add_argument(
         "--db",
         type=Path,
-        default=None,
-        help="prebuilt DuckDB (from trace_db.materialize / run_all's build-db); skips materialize",
+        default=trace_db.DEFAULT_DB,
+        help=f"prebuilt DuckDB (default: {trace_db.DEFAULT_DB})",
     )
     parser.add_argument(
         "-i",
         "--input",
         type=Path,
-        default=DEFAULT_INPUT,
-        help=f"normalized JSONL trace (materialized to a temp DuckDB if --db is not given; default: {DEFAULT_INPUT})",
+        default=None,
+        help="optional normalized JSONL override; materialized to a temporary DuckDB",
     )
     parser.add_argument(
         "-o",
@@ -486,7 +485,7 @@ def main() -> int:
 
     con = trace_db.open_from_args(args)
     stats = collect_timing_fit_trace(con, args.output)
-    print(f"db={args.db}" if args.db is not None else f"input={args.input}")
+    print(f"input={args.input}" if args.input is not None else f"db={args.db}")
     print(f"output={args.output}")
     for key in sorted(stats):
         print(f"{key}={stats[key]}")

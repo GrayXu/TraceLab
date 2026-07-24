@@ -87,7 +87,7 @@ uv run python artifacts/human_in_the_loop/human_input_wait/plot.py
 uv run python artifacts/human_in_the_loop/human_input_wait/plot.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/human_in_the_loop/human_input_wait/plot.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/human_in_the_loop/human_input_wait/plot.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 ```
 
 ## Outputs
@@ -103,7 +103,7 @@ uv run python artifacts/human_in_the_loop/human_input_wait/plot.py --db /tmp/tra
 
 Each PNG embeds this README, the CSVs above, and the plotting code (`plot.py` + shared
 `artifacts/utils/` modules) as compressed text chunks. Unpack with
-`python artifacts/utils/png_sidecar.py extract <png>`.
+`uv run python artifacts/utils/png_sidecar.py extract <png>`.
 
 ## SyFI result analysis
 

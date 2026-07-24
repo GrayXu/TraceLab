@@ -26,8 +26,6 @@ from growth import (  # noqa: E402
     first_timing_event_type,
 )
 
-DEFAULT_INPUT = REPO_ROOT / "trace" / "llm_round_trace.merged.all_users.jsonl"
-
 # Timing-event and tool timestamps were originally ISO8601 strings on the JSONL rows
 # (`YYYY-MM-DDTHH:MM:SS.mmmZ`, uniformly UTC millisecond precision); the summary parses them
 # back into aware datetimes. The trace DB stores them as a naive microsecond TIMESTAMP (T/Z
@@ -1504,7 +1502,7 @@ def main() -> int:
         summary = read_summary_from_db(con)
     finally:
         con.close()
-    source = args.db if getattr(args, "db", None) is not None else args.input
+    source = args.input if args.input is not None else args.db
     if args.json:
         print(json.dumps(summary.as_dict(), indent=2))
     else:

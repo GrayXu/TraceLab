@@ -9,6 +9,7 @@ trace/*.jsonl.gz
 trace/*.json
 trace/*.csv
 trace/*.duckdb
+/trace/collections/
 
 # artifacts/: track experiment code (*.py) and README.md only; everything else
 # under artifacts/ is a generated output and stays ignored. Each experiment lives
@@ -64,4 +65,10 @@ web/app/public/paper.pdf
 .codex/skills/tracelab-send-to-production/
 # Local-only runbook: self-hosted vLLM on ptc GPU 1 + AI-backend wiring (names internal hosts/keys).
 .codex/skills/serve-vllm-ptc/
+# Local-only runbook: internal multi-host trace recollection and release refresh.
+.codex/skills/recollect-traces/
+/uw-syfi.github.io/
 /blog/
+
+# Local snapshots of the tool-input sampling experiment.
+/artifacts/tool_calls/tool_input_samples.backup-*/

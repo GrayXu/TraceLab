@@ -35,7 +35,7 @@ uv run python artifacts/llm_generation/token_spindles/plot.py
 uv run python artifacts/llm_generation/token_spindles/plot.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/llm_generation/token_spindles/plot.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/llm_generation/token_spindles/plot.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 ```
 
 `--db | -i/--input | -o/--output-dir` 是标准 I/O flag；`-o` 默认为本文件夹。
@@ -46,7 +46,7 @@ uv run python artifacts/llm_generation/token_spindles/plot.py --db /tmp/trace.du
 - `token_spindle_summary.csv` — 各指标的计数（positive / zero）与分位数（p25, median, p90, p95, p99, min, max）。
 - `result_analysis.md` — 生成的运行日志（策略说明、轴说明、配对统计）。
 
-每张 PNG 都嵌入了本 README、汇总 CSV，以及 `plot.py`。可用 `python artifacts/utils/png_sidecar.py extract <png>` 解包。
+每张 PNG 都嵌入了本 README、汇总 CSV，以及 `plot.py`。可用 `uv run python artifacts/utils/png_sidecar.py extract <png>` 解包。
 
 ## SyFI result analysis
 

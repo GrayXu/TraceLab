@@ -87,7 +87,7 @@ uv run python artifacts/prefix_cache/kv_cache_active_ratio/plot.py
 uv run python artifacts/prefix_cache/kv_cache_active_ratio/plot.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/prefix_cache/kv_cache_active_ratio/plot.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/prefix_cache/kv_cache_active_ratio/plot.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 ```
 
 ## Outputs
@@ -101,7 +101,7 @@ Written to `-o` (default this folder):
   `denominator_seconds`/`_hours`, and `kv_cache_active_ratio`.
 
 Each PNG is self-contained — it embeds this README, the CSV, and the plotting code (`plot.py` + the
-shared `artifacts/utils/` modules). Unpack with `python artifacts/utils/png_sidecar.py extract <png>`.
+shared `artifacts/utils/` modules). Unpack with `uv run python artifacts/utils/png_sidecar.py extract <png>`.
 
 ## SyFI result analysis
 

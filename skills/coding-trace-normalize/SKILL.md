@@ -101,7 +101,8 @@ sed -n '1,120p' example_sessions/derived/round_trace.expanded.json
 Summarize a normalized file:
 
 ```bash
-uv run python artifacts/trace_facts/overview_summary/analyze.py -i trace/llm_round_trace.public.jsonl --json
+uv run python artifacts/trace_facts/overview_summary/analyze.py \
+  --db trace/syfi_coding_trace.duckdb --json
 ```
 
 When answering field questions, cite the relevant extractor or docs and avoid exposing private `tools[].input` or local context from unsanitized rows unless the user explicitly asks to inspect their own private data.
