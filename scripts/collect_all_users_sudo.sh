@@ -6,7 +6,8 @@ usage() {
 Usage: scripts/collect_all_users_sudo.sh [options] [-- collect_llm_traces.py args...]
 
 Collect all readable users under /home with sudo, while keeping final outputs
-owned by the launching user.
+owned by the launching user. Existing normalized rounds are retained by default,
+so source-session cleanup cannot remove previously collected history.
 
 Options:
   -o, --output PATH       Output JSONL path.
@@ -92,8 +93,9 @@ if [[ -z "$python_bin" ]]; then
 fi
 
 mkdir -p -- "$(dirname -- "$output")"
-tmp_output="$(mktemp "${TMPDIR:-/tmp}/coding-trace-all-users.XXXXXX.jsonl")"
-tmp_report="$(mktemp "${TMPDIR:-/tmp}/coding-trace-all-users-report.XXXXXX.json")"
+temporary_directory="${TMPDIR:?TMPDIR must be set}"
+tmp_output="$(mktemp "${temporary_directory}/coding-trace-all-users.XXXXXX.jsonl")"
+tmp_report="$(mktemp "${temporary_directory}/coding-trace-all-users-report.XXXXXX.json")"
 
 cleanup() {
   [[ -e "${tmp_output:-}" ]] && rm -f -- "$tmp_output"
@@ -101,13 +103,16 @@ cleanup() {
 }
 trap cleanup EXIT
 
+if [[ -s "$output" ]]; then
+  cp -- "$output" "$tmp_output"
+fi
+
 collect_cmd=(
   "$python_bin"
   "$script_dir/collect_llm_traces.py"
   --all-user
   --home-root "$home_root"
   --extract-rounds "$tmp_output"
-  --fresh-extract
   --json
 )
 

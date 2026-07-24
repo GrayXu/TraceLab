@@ -78,9 +78,9 @@ Turn your local Claude/Codex history into a shareable, sanitized trace and regen
 every figure:
 
 ```bash
-# 1. Collect a fresh private normalized trace
+# 1. Collect a private normalized trace (existing history is retained)
 uv run python scripts/collect_llm_traces.py \
-  --extract-rounds trace/llm_round_trace.jsonl --fresh-extract
+  --extract-rounds trace/llm_round_trace.jsonl
 
 # 2. Sanitize it (pseudonymize ids, strip local paths & tool inputs)
 uv run python scripts/sanitize_round_trace.py \
@@ -235,6 +235,7 @@ Distinct-user counts remain available through pseudonymous `user` values.
 
 - `collect_llm_traces.py` — scan Claude/Codex local history, count sessions, optionally write normalized round traces.
 - `collect_all_users_sudo.sh` — sudo-friendly wrapper for all-user extraction.
+- `merge_round_traces.py` — union historical private traces by stable round identity; newer inputs win.
 - `extract_claude_rounds.py` / `extract_codex_rounds.py` — convert provider JSONL sessions into normalized round rows.
 - `sanitize_round_trace.py` — remove public-release-sensitive fields.
 - `find_representative_session_segments.py` — find compact raw-session windows for examples.

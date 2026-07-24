@@ -18,7 +18,10 @@ Use this skill to collect local Claude Code and Codex history stores and write n
    - All users under `/home`: use `--all-user`, or the sudo wrapper when unreadable homes are expected. Use `--home-root PATH` for nonstandard home roots.
 4. Decide write behavior:
    - Default extraction appends deduped rows.
-   - `--fresh-extract` removes selected output files first.
+   - The sudo wrapper seeds collection from its existing output, preserving
+     sessions that Claude Code or Codex has since cleaned up.
+   - `--fresh-extract` intentionally removes selected output files first and
+     must not be used for a cumulative archive.
 5. Do not publish private outputs until `$coding-trace-sanitize` has been applied.
 6. After sanitization, use `$coding-trace-analyze` for artifact and validator dispatchers. Collection should not own plotting outputs or timing-fit CSVs.
 
@@ -37,7 +40,7 @@ uv run python scripts/collect_llm_traces.py --extract-rounds
 ```
 
 Write to a specific file and start fresh. This is the recommended current-user command
-for an end-to-end run:
+only when intentionally creating a new, non-cumulative dataset:
 
 ```bash
 uv run python scripts/collect_llm_traces.py --extract-rounds trace/llm_round_trace.jsonl --fresh-extract
@@ -56,6 +59,18 @@ scripts/collect_all_users_sudo.sh --sanitize
 ```
 
 The wrapper writes `trace/llm_round_trace.all_users.jsonl`, a sibling `.collection_report.json`, and with `--sanitize` a sibling `.public.jsonl`. It prints an overview summary by default; add `--no-summary` for quiet batch runs. Add `--quiet-progress` only to suppress collector progress messages.
+If the private output already exists, the wrapper copies it into the sudo-owned
+working file before extraction. Current source files update the archive only by
+adding unseen stable round identities; missing source files do not erase history.
+
+To combine older and newer private normalized traces while letting newer
+normalizer fields win on overlap:
+
+```bash
+uv run python scripts/merge_round_traces.py \
+  trace/older.private.jsonl trace/newer.private.jsonl \
+  -o trace/combined.private.jsonl
+```
 
 For a private-to-public current-user flow:
 
