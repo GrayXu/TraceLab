@@ -78,7 +78,7 @@ Turn your local Claude/Codex history into a shareable, sanitized trace and regen
 every figure:
 
 ```bash
-collection_id="$(date -u +%Y%m%dT%H%M%SZ)"
+collection_id="20260724-100b"
 collection_directory="trace/collections/${collection_id}"
 
 # 1. Collect a private normalized trace (existing history is retained)
@@ -223,14 +223,14 @@ uv run python scripts/collect_llm_traces.py --extract-rounds
 uv run python scripts/collect_llm_traces.py --all-user --extract-rounds
 
 # Sudo-backed all-user collection that keeps outputs owned by the launching user
-collection_id="$(date -u +%Y%m%dT%H%M%SZ)"
+collection_id="20260724-100b"
 scripts/collect_all_users_sudo.sh \
   --collection-id "$collection_id" \
   --fresh-extract
 ```
 
-For a multi-host corpus refresh, write each host's fresh extraction into one shared UTC collection
-ID under `trace/collections/YYYYMMDDTHHMMSSZ/`. Then merge the historical private archive first and
+For a multi-host corpus refresh, write each host's fresh extraction into one shared collection ID,
+such as `20260724-100b`, under `trace/collections/<collection_id>/`. Then merge the historical private archive first and
 the fresh host snapshots afterward with `scripts/merge_round_traces.py`. The newest copy of
 `(provider, session_id, round_id)` wins, so rounds are re-normalized without losing history whose
 original local session files have been deleted.

@@ -12,7 +12,9 @@ merge it with the historical private archive on the aggregation host.
 Options:
   -o, --output PATH       Output JSONL path.
                           Default: a dated file under trace/collections/.
-  --collection-id ID      UTC collection timestamp (YYYYMMDDTHHMMSSZ).
+  --collection-id ID      Collection slug, for example 20260724-100b.
+                          Allowed: 1-64 letters, digits, dots, underscores,
+                          or hyphens; the first character must be alphanumeric.
                           Reuse one ID across every host in a collection.
   --fresh-extract         Re-normalize currently readable raw sessions instead
                           of seeding from an existing output.
@@ -96,7 +98,7 @@ done
 
 if [[ -z "$collection_id" ]]; then
   collection_id="$(date -u +%Y%m%dT%H%M%SZ)"
-elif [[ ! "$collection_id" =~ ^[0-9]{8}T[0-9]{6}Z$ ]]; then
+elif [[ ! "$collection_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]]; then
   echo "invalid collection id: $collection_id" >&2
   exit 2
 fi

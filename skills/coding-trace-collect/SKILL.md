@@ -54,11 +54,11 @@ Scan all homes under `/home` without sudo:
 uv run python scripts/collect_llm_traces.py --all-user --extract-rounds
 ```
 
-Use the sudo wrapper for a fresh, timestamped all-user snapshot while preserving final file
+Use the sudo wrapper for a fresh, named all-user snapshot while preserving final file
 ownership. Reuse one `collection_id` on every host:
 
 ```bash
-collection_id="$(date -u +%Y%m%dT%H%M%SZ)"
+collection_id="20260724-100b"
 scripts/collect_all_users_sudo.sh \
   --collection-id "$collection_id" \
   --fresh-extract
@@ -83,7 +83,7 @@ uv run python scripts/merge_round_traces.py \
 For a private-to-public current-user flow:
 
 ```bash
-collection_id="$(date -u +%Y%m%dT%H%M%SZ)"
+collection_id="20260724-100b"
 
 uv run python scripts/collect_llm_traces.py \
   --extract-rounds "trace/collections/${collection_id}/merged.private.jsonl" \
@@ -117,7 +117,7 @@ Important output names:
 - Current-user Claude-only trace: `trace/claude_round_trace.jsonl`.
 - Current-user Codex-only trace: `trace/codex_round_trace.jsonl`.
 - Sudo-wrapper all-user trace:
-  `trace/collections/<timestamp>/hosts/llm_round_trace_v2.<timestamp>.<host>.all_users.jsonl`.
+  `trace/collections/<collection_id>/hosts/llm_round_trace_v2.<collection_id>.<host>.all_users.jsonl`.
 - Sudo-wrapper report: the sibling `.collection_report.json`.
 - Sudo-wrapper sanitized output with `--sanitize`: the sibling `.public.jsonl`.
 - Selected historical collection: `trace/collections/current`.
@@ -147,7 +147,8 @@ Prefer `collect_llm_traces.py` for normal use because it scans both providers, h
 - `--no-claude-back`: skip `.claude.back/projects`.
 - `--quiet-host-progress`: collector option that suppresses progress messages during host scanning and extraction.
 - `--quiet-progress`: sudo-wrapper option that passes the collector quiet mode.
-- `--collection-id`: sudo-wrapper UTC timestamp used in both the collection directory and file names.
+- `--collection-id`: safe collection slug used in both the collection directory and file names;
+  prefer a UTC-date prefix such as `20260724-100b`.
 - `--no-summary`: sudo-wrapper option that skips the post-collection overview summary.
 - `--no-sudo`: sudo-wrapper option that runs all-user collection without sudo.
 - `--extract-project-filter TEXT`: only extract Claude projects whose directory name contains `TEXT`; repeat the option for multiple filters.

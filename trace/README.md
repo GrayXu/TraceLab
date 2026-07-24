@@ -11,10 +11,10 @@ The current-user collector defaults to:
 trace/llm_round_trace.jsonl
 ```
 
-Store each all-user corpus collection under one UTC timestamp:
+Store each all-user corpus collection under one stable, meaningful ID:
 
 ```text
-trace/collections/YYYYMMDDTHHMMSSZ/
+trace/collections/COLLECTION_ID/
 ├── hosts/
 │   ├── llm_round_trace_v2.TIMESTAMP.HOST.all_users.jsonl
 │   └── llm_round_trace_v2.TIMESTAMP.HOST.all_users.collection_report.json
@@ -24,10 +24,11 @@ trace/collections/YYYYMMDDTHHMMSSZ/
 └── merged.public.duckdb
 ```
 
-Choose the collection ID once and reuse it on every host:
+Choose the collection ID once and reuse it on every host. Prefix the meaningful name with the UTC
+date so collection directories sort chronologically, for example `20260724-100b`:
 
 ```bash
-collection_id="$(date -u +%Y%m%dT%H%M%SZ)"
+collection_id="20260724-100b"
 scripts/collect_all_users_sudo.sh \
   --collection-id "$collection_id" \
   --no-summary \
@@ -44,7 +45,7 @@ Union the historical private archive first, followed by every fresh host snapsho
 `(provider, session_id, round_id)` and the newest copy wins. Sanitize the resulting
 `merged.private.jsonl` before building `merged.public.duckdb`.
 
-`trace/collections/current` points to the selected timestamped collection. The generated files at
+`trace/collections/current` points to the selected collection. The generated files at
 the `trace/` root are limited to the latest release-facing `syfi_coding_trace.jsonl.gz` and
 `syfi_coding_trace.duckdb`; replace them only after the timestamped public trace passes privacy and
 validator checks.
