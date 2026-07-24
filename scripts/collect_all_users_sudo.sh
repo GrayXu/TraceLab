@@ -104,7 +104,10 @@ cleanup() {
 trap cleanup EXIT
 
 if [[ -s "$output" ]]; then
-  cp -- "$output" "$tmp_output"
+  UV_CACHE_DIR="${UV_CACHE_DIR:-${temporary_directory}/uv-cache}" \
+    uv run python "$script_dir/merge_round_traces.py" \
+    "$output" \
+    --output "$tmp_output"
 fi
 
 collect_cmd=(

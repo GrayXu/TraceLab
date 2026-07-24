@@ -10,7 +10,11 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-from merge_round_traces import merge_round_traces, stable_round_identity  # noqa: E402
+from merge_round_traces import (  # noqa: E402
+    merge_round_traces,
+    round_exclusion_reason,
+    stable_round_identity,
+)
 
 
 def write_trace(path: Path, records: list[dict]) -> None:
@@ -113,3 +117,27 @@ def test_merge_uses_last_occurrence_within_an_input(
 def test_stable_identity_requires_all_fields() -> None:
     with pytest.raises(ValueError, match="session_id"):
         stable_round_identity({"provider": "claude", "round_id": "msg"})
+
+
+def test_merge_excludes_model_less_codex_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TMPDIR", str(tmp_path))
+    input_path = tmp_path / "input.jsonl"
+    output_path = tmp_path / "merged.jsonl"
+    artifact = {
+        "provider": "codex",
+        "session_id": "codex:session",
+        "round_id": "replayed:0",
+        "model": None,
+    }
+    valid = {**artifact, "round_id": "live:0", "model": "gpt-test"}
+    write_trace(input_path, [artifact, valid])
+
+    report = merge_round_traces([input_path], output_path)
+
+    assert read_trace(output_path) == [valid]
+    assert report["excluded_rows"] == 1
+    assert report["inputs"][0]["excluded_reasons"] == {"codex_missing_model": 1}
+    assert round_exclusion_reason(artifact) == "codex_missing_model"

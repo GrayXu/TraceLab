@@ -633,6 +633,23 @@ def extract_codex_session(
                 total_usage = info.get("total_token_usage")
                 if not isinstance(last_usage, dict) or not isinstance(total_usage, dict):
                     continue
+                if current_model is None:
+                    # Subagent rollout files can replay a parent session before
+                    # the child's first turn_context. Those token_count records
+                    # have no attributable model and are not new child LLM
+                    # invocations. Discard their accumulated replay state so it
+                    # cannot leak into the first live child round.
+                    pending_input_events = []
+                    segment_timing_events = []
+                    segment_tools = []
+                    tool_by_id.clear()
+                    process_roots.clear()
+                    if raw_sink is not None:
+                        raw_pending_in = []
+                        raw_segment_out = []
+                        raw_segment_tools = []
+                        raw_tool_by_id.clear()
+                    continue
                 total_sig = json.dumps(total_usage, sort_keys=True)
                 if total_sig == last_total_sig:
                     continue

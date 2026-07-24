@@ -154,6 +154,45 @@ def _extract(tmp_path: Path, records: list[dict]) -> list[dict]:
     return extract_codex_session(session)
 
 
+def test_model_less_replay_is_not_emitted_or_carried_into_live_round(
+    tmp_path: Path,
+) -> None:
+    records = [
+        _record(
+            "2026-01-01T00:00:00.000Z",
+            "session_meta",
+            {"id": "11111111-1111-1111-1111-111111111111", "cwd": "/private/repo"},
+        ),
+        _record(
+            "2026-01-01T00:00:00.010Z",
+            "event_msg",
+            {"type": "user_message", "message": "replayed parent input"},
+        ),
+        _token_count("2026-01-01T00:00:00.100Z", 1),
+        _record(
+            "2026-01-01T00:00:01.000Z",
+            "turn_context",
+            {
+                "turn_id": "22222222-2222-2222-2222-222222222222",
+                "model": "codex-test",
+            },
+        ),
+        _record(
+            "2026-01-01T00:00:01.010Z",
+            "event_msg",
+            {"type": "user_message", "message": "live child input"},
+        ),
+        _token_count("2026-01-01T00:00:01.100Z", 2),
+    ]
+
+    rounds = _extract(tmp_path, records)
+
+    assert len(rounds) == 1
+    assert rounds[0]["model"] == "codex-test"
+    assert rounds[0]["current_user_message_count"] == 1
+    assert rounds[0]["current_user_message_chars"] == len("live child input")
+
+
 def test_special_command_result_formats_are_classified() -> None:
     aborted = "aborted by user after 7.2s"
     failed = "exec_command failed: CreateProcess { message: \"rejected\" }"

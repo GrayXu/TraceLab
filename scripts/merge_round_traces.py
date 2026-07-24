@@ -21,6 +21,15 @@ from typing import Any
 RoundIdentity = tuple[str, str, str]
 
 
+def round_exclusion_reason(record: dict[str, Any]) -> str | None:
+    """Identify normalized rows known to be extractor artifacts."""
+    if record.get("provider") == "codex":
+        model = record.get("model")
+        if not isinstance(model, str) or not model:
+            return "codex_missing_model"
+    return None
+
+
 def stable_round_identity(record: dict[str, Any]) -> RoundIdentity:
     """Return the provider/session/round identity used by the extractors."""
     provider = record.get("provider")
@@ -71,11 +80,19 @@ def merge_round_traces(input_paths: list[Path], output_path: Path) -> dict[str, 
 
     owner_by_identity: dict[RoundIdentity, tuple[int, int]] = {}
     input_rows = [0] * len(input_paths)
+    excluded_by_input: list[dict[str, int]] = [{} for _ in input_paths]
     for input_index, input_path in enumerate(input_paths):
         for line_number, record in iter_jsonl(input_path):
+            input_rows[input_index] += 1
+            exclusion_reason = round_exclusion_reason(record)
+            if exclusion_reason is not None:
+                excluded_counts = excluded_by_input[input_index]
+                excluded_counts[exclusion_reason] = (
+                    excluded_counts.get(exclusion_reason, 0) + 1
+                )
+                continue
             identity = stable_round_identity(record)
             owner_by_identity[identity] = input_index, line_number
-            input_rows[input_index] += 1
 
     temporary_directory = os.environ.get("TMPDIR")
     if not temporary_directory:
@@ -96,6 +113,8 @@ def merge_round_traces(input_paths: list[Path], output_path: Path) -> dict[str, 
             temporary_path = Path(output_file.name)
             for input_index, input_path in enumerate(input_paths):
                 for line_number, record in iter_jsonl(input_path):
+                    if round_exclusion_reason(record) is not None:
+                        continue
                     identity = stable_round_identity(record)
                     if owner_by_identity[identity] != (input_index, line_number):
                         continue
@@ -114,14 +133,27 @@ def merge_round_traces(input_paths: list[Path], output_path: Path) -> dict[str, 
             {
                 "path": str(input_path),
                 "rows": input_rows[input_index],
+                "rows_excluded": sum(excluded_by_input[input_index].values()),
+                "excluded_reasons": excluded_by_input[input_index],
                 "rows_kept": written_by_input[input_index],
-                "rows_superseded": input_rows[input_index] - written_by_input[input_index],
+                "rows_superseded": (
+                    input_rows[input_index]
+                    - sum(excluded_by_input[input_index].values())
+                    - written_by_input[input_index]
+                ),
             }
             for input_index, input_path in enumerate(input_paths)
         ],
         "output": str(output_path),
         "unique_rounds": len(owner_by_identity),
-        "duplicate_rows_superseded": sum(input_rows) - len(owner_by_identity),
+        "excluded_rows": sum(
+            sum(excluded_counts.values()) for excluded_counts in excluded_by_input
+        ),
+        "duplicate_rows_superseded": (
+            sum(input_rows)
+            - sum(sum(excluded_counts.values()) for excluded_counts in excluded_by_input)
+            - len(owner_by_identity)
+        ),
     }
 
 

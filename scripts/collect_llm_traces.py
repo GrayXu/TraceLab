@@ -185,6 +185,7 @@ def count_codex_sessions(sessions_dir: Path) -> dict[str, Any]:
     session_ids: set[str] = set()
     raw_usage_events = 0
     duplicate_usage_echoes = 0
+    usage_events_without_model_skipped = 0
     llm_invocations = 0
     models = Counter()
 
@@ -214,6 +215,9 @@ def count_codex_sessions(sessions_dir: Path) -> dict[str, Any]:
                 continue
 
             raw_usage_events += 1
+            if model is None:
+                usage_events_without_model_skipped += 1
+                continue
             total_sig = json.dumps(total_usage, sort_keys=True)
             if total_sig == last_total_sig:
                 duplicate_usage_echoes += 1
@@ -232,6 +236,7 @@ def count_codex_sessions(sessions_dir: Path) -> dict[str, Any]:
         "sessions": len(session_ids),
         "raw_token_count_usage_events": raw_usage_events,
         "duplicate_usage_echoes_removed": duplicate_usage_echoes,
+        "usage_events_without_model_skipped": usage_events_without_model_skipped,
         "llm_invocations": llm_invocations,
         "models": dict(models),
         "session_ids": session_ids,
