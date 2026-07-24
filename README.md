@@ -215,6 +215,12 @@ uv run python scripts/collect_llm_traces.py --all-user --extract-rounds
 # Sudo-backed all-user collection that keeps outputs owned by the launching user
 scripts/collect_all_users_sudo.sh --sanitize
 ```
+
+For a multi-host corpus refresh, write each host's fresh extraction into one shared UTC collection
+ID under `trace/collections/YYYYMMDDTHHMMSSZ/`. Then merge the prior private aggregate first and
+the fresh host snapshots afterward with `scripts/merge_round_traces.py`. The newest copy of
+`(provider, session_id, round_id)` wins, so rounds are re-normalized without losing history whose
+original local session files have been deleted.
 </details>
 
 <details>
