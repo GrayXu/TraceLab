@@ -409,6 +409,24 @@ def test_sanitizer_adds_privacy_safe_executable_facts() -> None:
     assert "input" not in continuation
 
 
+def test_sanitizer_pseudonymizes_custom_tool_names_consistently() -> None:
+    row = {
+        "provider": "claude",
+        "tools": [
+            {"tool_name": "private_cluster_profiler", "tool_call_id": "call_private"},
+            {"tool_name": "Read", "tool_call_id": "call_public"},
+        ],
+        "timing_events": [
+            {"tool_name": "private_cluster_profiler", "tool_call_id": "call_private"},
+        ],
+    }
+    sanitized = sanitize_row(row, StableIdSanitizer("test-seed"))
+
+    assert sanitized["tools"][0]["tool_name"] == "custom_tool_1"
+    assert sanitized["tools"][1]["tool_name"] == "Read"
+    assert sanitized["timing_events"][0]["tool_name"] == "custom_tool_1"
+
+
 def test_executable_facts_keep_structure_and_report_failures() -> None:
     structured = extract_executable_facts(
         {"cmd": "make || echo nope; for item in a; do ls; done"}

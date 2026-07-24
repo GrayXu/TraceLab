@@ -25,6 +25,12 @@
     :root { --edge: 2rem; }   /* tighter 16px edges on phones (shell + topbar both follow --edge) */
     .shell { padding-bottom: 60px; }
     .topbar-inner { padding: 12px 0; }
+    .release-announcement {
+      justify-content: flex-start;
+      align-items: flex-start;
+      padding: 9px 0 11px;
+      font-size: 13px;
+    }
     nav.tabs { order: 3; width: 100%; justify-content: center; }
     .brand { margin-right: 0; gap: 10px; }
     .brand .mark { width: 66px; height: 32px; }

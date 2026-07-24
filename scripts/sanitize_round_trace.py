@@ -31,6 +31,8 @@ PREFIX_HEX_RE = re.compile(r"^(msg_|toolu_)([0-9a-fA-F]+)$")
 PREFIX_BASE62_RE = re.compile(r"^(call_)([A-Za-z0-9]+)$")
 PUBLIC_EXECUTABLE_RE = re.compile(r"^custom_[1-9][0-9]*$")
 EXECUTABLE_WHITELIST = Path(__file__).resolve().with_name("public_common_executables.txt")
+PUBLIC_TOOL_NAME_RE = re.compile(r"^custom_tool_[1-9][0-9]*$")
+TOOL_NAME_WHITELIST = Path(__file__).resolve().with_name("public_common_tool_names.txt")
 
 
 def load_executable_whitelist(path: Path = EXECUTABLE_WHITELIST) -> frozenset[str]:
@@ -46,6 +48,7 @@ def load_executable_whitelist(path: Path = EXECUTABLE_WHITELIST) -> frozenset[st
 
 
 PUBLIC_EXECUTABLES = load_executable_whitelist()
+PUBLIC_TOOL_NAMES = load_executable_whitelist(TOOL_NAME_WHITELIST)
 SKELETON_RESERVED = frozenset(
     {
         "|", "&&", "||", ";", "&", "!",
@@ -147,6 +150,15 @@ class StableIdSanitizer:
             mapping[original] = f"custom_{len(mapping) + 1}"
         return mapping[original]
 
+    def tool_name(self, original: str) -> str:
+        """Keep standard tool names; pseudonymize every custom/integration-specific name."""
+        if original in PUBLIC_TOOL_NAMES or PUBLIC_TOOL_NAME_RE.fullmatch(original):
+            return original
+        mapping = self.maps.setdefault("tool_name", {})
+        if original not in mapping:
+            mapping[original] = f"custom_tool_{len(mapping) + 1}"
+        return mapping[original]
+
 
 def sanitize_executable_facts(facts: dict[str, Any], ids: StableIdSanitizer) -> dict[str, Any]:
     """Sanitize executable labels consistently in the list and structural skeleton."""
@@ -226,6 +238,11 @@ def sanitize_row(row: dict[str, Any], ids: StableIdSanitizer) -> dict[str, Any]:
             if not isinstance(tool, dict):
                 continue
             original_tool = original_tools[index] if index < len(original_tools) else {}
+            original_tool_name = (
+                original_tool.get("tool_name") if isinstance(original_tool, dict) else None
+            )
+            if isinstance(original_tool_name, str):
+                tool["tool_name"] = ids.tool_name(original_tool_name)
             if isinstance(original_tool, dict) and "tool_call_id" in original_tool:
                 tool["tool_call_id"] = ids.atomic_id(
                     "tool_call_id",
@@ -241,7 +258,7 @@ def sanitize_row(row: dict[str, Any], ids: StableIdSanitizer) -> dict[str, Any]:
                     original_tool.get("continuation_of_tool_call_id"),
                     fallback_prefix="call_",
                 )
-            if isinstance(original_tool, dict) and tool.get("tool_name") in COMMAND_TOOL_NAMES:
+            if isinstance(original_tool, dict) and original_tool_name in COMMAND_TOOL_NAMES:
                 raw_input = original_tool.get("input")
                 if raw_input is not None:
                     try:
@@ -299,6 +316,11 @@ def sanitize_row(row: dict[str, Any], ids: StableIdSanitizer) -> dict[str, Any]:
                     original_event.get("tool_call_id"),
                     fallback_prefix="call_",
                 )
+            original_tool_name = (
+                original_event.get("tool_name") if isinstance(original_event, dict) else None
+            )
+            if isinstance(original_tool_name, str):
+                event["tool_name"] = ids.tool_name(original_tool_name)
 
     if "trace_key" in cleaned:
         session_id = cleaned.get("session_id")

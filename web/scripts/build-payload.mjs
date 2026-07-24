@@ -213,6 +213,7 @@ function assemblePython() {
     add(join(SCRIPTS, name), `normalize/${name}`);
   }
   add(join(SCRIPTS, 'public_common_executables.txt'), 'normalize/public_common_executables.txt');
+  add(join(SCRIPTS, 'public_common_tool_names.txt'), 'normalize/public_common_tool_names.txt');
 
   // Shared util library — every .py under artifacts/utils (png_sidecar globs them all).
   const utilsDir = join(ARTIFACTS, 'utils');
