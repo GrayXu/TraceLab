@@ -10,8 +10,8 @@ The registry below is the manifest of all experiments and how each is launched â
 some take ``-i``, some ``--input``, a few read a module-level ``INPUT`` default,
 ``csv_export`` needs ``-i``/``-o``, ``overview_summary`` prints to stdout (captured to
 ``summary.json``), ``timing_fit/build_trace`` derives the local timing CSV from the
-JSONL trace, and ``build_summary`` post-processes ``timing_feature_ambiguity``'s
-outputs (so it is scheduled only after that experiment succeeds).
+JSONL trace, and dependency-aware multi-step artifacts such as
+``bash_command_breakdown`` are scheduled in their required order.
 
 Examples
 --------
@@ -91,7 +91,13 @@ class Experiment:
     script: str           # path relative to artifacts/
     style: str            # "-i" | "--input" | "global" | "io" | "stdout" | "none" | "timing-build" | "db-build"
     data: str = "jsonl"   # "jsonl" -> merged trace, "timing" -> timing CSV, "db" -> trace DuckDB (--db)
-    after: str = ""       # name of an experiment that must finish first (same-process dep)
+    after: str | tuple[str, ...] = ""  # experiment name(s) that must finish first
+
+
+def dependencies(experiment: Experiment) -> tuple[str, ...]:
+    if isinstance(experiment.after, str):
+        return (experiment.after,) if experiment.after else ()
+    return experiment.after
 
 
 # Order is informational; scheduling is by dependency + free worker slots.
@@ -121,6 +127,19 @@ EXPERIMENTS: list[Experiment] = [
     Experiment("tool_calls", "tool_category_distribution", "tool_calls/tool_category_distribution/analyze.py", "global", "db", after=BUILD_DB_NAME),
     Experiment("tool_calls", "claude_long_tool_calls", "tool_calls/claude_long_tool_calls/analyze.py", "-i", "db", after=BUILD_DB_NAME),
     Experiment("tool_calls", "codex_wall_internal_gap", "tool_calls/codex_wall_internal_gap/analyze.py", "-i", "db", after=BUILD_DB_NAME),
+    # bash_command_breakdown is a dependency-ordered artifact pipeline. The exporter must finish
+    # before its command_calls.jsonl consumers, while command_stats also needs tool_time_by_kind.
+    Experiment("tool_calls", "bash_command_breakdown/classify_commands", "tool_calls/bash_command_breakdown/classify_commands.py", "-i", "db", after=BUILD_DB_NAME),
+    Experiment("tool_calls", "bash_command_breakdown/popularity", "tool_calls/bash_command_breakdown/analyze_popularity.py", "none", after="bash_command_breakdown/classify_commands"),
+    Experiment("tool_calls", "bash_command_breakdown/executable_runtime", "tool_calls/bash_command_breakdown/analyze_executable_runtime.py", "none", after="bash_command_breakdown/classify_commands"),
+    Experiment("tool_calls", "bash_command_breakdown/executable_runtime_updated", "tool_calls/bash_command_breakdown/analyze_executable_runtime_updated.py", "-i", "db", after="bash_command_breakdown/classify_commands"),
+    Experiment(
+        "tool_calls",
+        "bash_command_breakdown/command_stats",
+        "tool_calls/bash_command_breakdown/analyze_command_stats.py",
+        "none",
+        after=("bash_command_breakdown/classify_commands", "tool_time_by_kind"),
+    ),
     # prefix_cache ---------------------------------------------------------
     Experiment("prefix_cache", "cache_hit_ratio", "prefix_cache/cache_hit_ratio/analyze.py", "-i", "db", after=BUILD_DB_NAME),
     Experiment("prefix_cache", "redundant_prefill", "prefix_cache/redundant_prefill/analyze.py", "-i", "db", after=BUILD_DB_NAME),
@@ -223,17 +242,20 @@ def select_with_dependencies(only: str | None, *, skip_timing_build: bool, inclu
     while changed:
         changed = False
         for exp in list(selected.values()):
-            if not exp.after:
-                continue
-            if skip_timing_build and exp.after == TIMING_BUILD_NAME:
-                continue
-            dep = by_name.get(exp.after)
-            if dep is not None and dep.name == BUILD_DB_NAME and not include_db_build:
-                continue
-            if dep is None or dep.name in selected:
-                continue
-            selected[dep.name] = dep
-            changed = True
+            for dependency_name in dependencies(exp):
+                if skip_timing_build and dependency_name == TIMING_BUILD_NAME:
+                    continue
+                dependency = by_name.get(dependency_name)
+                if (
+                    dependency is not None
+                    and dependency.name == BUILD_DB_NAME
+                    and not include_db_build
+                ):
+                    continue
+                if dependency is None or dependency.name in selected:
+                    continue
+                selected[dependency.name] = dependency
+                changed = True
 
     return [exp for exp in EXPERIMENTS if exp.name in selected]
 
@@ -251,13 +273,18 @@ def schedule(selected, *, jobs, python, jsonl, timing, db, log_dir, stop_on_fail
     results: list[tuple[Experiment, int, float]] = []
     stop = False
 
-    def dep_state(e: Experiment):
+    def dep_state(experiment: Experiment):
         """True = ready, False = dependency failed, None = waiting on dependency."""
-        if not e.after or e.after not in selected_names:
+        selected_dependencies = [
+            dependency_name
+            for dependency_name in dependencies(experiment)
+            if dependency_name in selected_names
+        ]
+        if not selected_dependencies:
             return True
-        if e.after not in completed:
+        if any(dependency_name not in completed for dependency_name in selected_dependencies):
             return None
-        return completed[e.after] == 0
+        return all(completed[dependency_name] == 0 for dependency_name in selected_dependencies)
 
     def launch(e: Experiment):
         cmd, redirect = build_command(e, python, jsonl, timing, db)
@@ -285,7 +312,17 @@ def schedule(selected, *, jobs, python, jsonl, timing, db, log_dir, stop_on_fail
             if state is False:
                 completed[e.name] = RC_SKIPPED
                 results.append((e, RC_SKIPPED, 0.0))
-                print(f"[skip] {e.category}/{e.name} (dependency {e.after} failed)", file=sys.stderr, flush=True)
+                failed_dependencies = ", ".join(
+                    dependency_name
+                    for dependency_name in dependencies(e)
+                    if completed.get(dependency_name) != 0
+                )
+                print(
+                    f"[skip] {e.category}/{e.name} "
+                    f"(dependency failed: {failed_dependencies})",
+                    file=sys.stderr,
+                    flush=True,
+                )
                 continue
             popen, lp, handles = launch(e)
             running[e.name] = (popen, e, time.monotonic(), lp, handles)
@@ -369,7 +406,16 @@ def main() -> int:
     if args.list:
         selected_names = {e.name for e in selected}
         for e in selected:
-            dep = f"  after={e.after}" if e.after and e.after in selected_names else ""
+            selected_dependencies = [
+                dependency_name
+                for dependency_name in dependencies(e)
+                if dependency_name in selected_names
+            ]
+            dep = (
+                f"  after={','.join(selected_dependencies)}"
+                if selected_dependencies
+                else ""
+            )
             print(f"{e.category:<18} {e.name:<38} [{e.style}, {e.data}]{dep}")
         return 0
 

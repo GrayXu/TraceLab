@@ -94,6 +94,18 @@ comment-only or otherwise structureless inputs. Placeholder/operator categories 
 
 ## Running it
 
+The full dependency-ordered pipeline is registered in the shared dispatcher:
+
+```bash
+uv run python artifacts/run_all.py --only tool_calls/bash_command_breakdown
+```
+
+It runs `classify_commands` first, launches the independent popularity/runtime
+consumers afterward, and waits for both `classify_commands` and
+`tool_time_by_kind` before producing `command_stats`.
+
+The equivalent manual commands are:
+
 ```bash
 BASE=artifacts/tool_calls/bash_command_breakdown
 TRACE=trace/llm_round_trace_v2.merged.all_users.public.jsonl
