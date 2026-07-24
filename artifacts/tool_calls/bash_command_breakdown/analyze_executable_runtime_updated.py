@@ -169,6 +169,45 @@ def main(argv=None) -> int:
         ),
         output_name="executable_runtime_updated.png",
     )
+    clipped_png = plot_runtime(
+        lat,
+        kind,
+        coverage,
+        args.output_dir,
+        args.min_calls,
+        args.top,
+        args.tools_only,
+        figure_title="Executable runtime — observable full-command duration",
+        x_label="observable command duration (log scale; starts at 100 ms)",
+        subtitle_suffix=(
+            "Claude: effective call latency; Codex: exec start → first finished result; "
+            "incomplete/multi-exe excluded"
+        ),
+        output_name="executable_runtime_updated_provider_colors_100ms.png",
+        x_min_ms=100.0,
+        x_max_ms=1_200_000.0,
+        color_by_provider=True,
+    )
+    horizontal_png = plot_runtime(
+        lat,
+        kind,
+        coverage,
+        args.output_dir,
+        args.min_calls,
+        args.top,
+        args.tools_only,
+        figure_title="Executable runtime — observable full-command duration",
+        x_label="Command duration",
+        subtitle_suffix=(
+            "Claude: effective call latency · Codex: exec start → first finished result · "
+            "incomplete/multi-exe excluded"
+        ),
+        output_name="executable_runtime_updated_provider_colors_100ms_left_right.png",
+        x_min_ms=100.0,
+        x_max_ms=1_200_000.0,
+        color_by_provider=True,
+        layout="horizontal",
+    )
     total_csv, total_png = plot_total_latency_top15(
         lat,
         kind,
@@ -187,7 +226,7 @@ def main(argv=None) -> int:
             *png_sidecar.util_code_files(),
         ],
         readme_path=EXP_DIR / "README.md",
-        png_names=[png.name],
+        png_names=[png.name, clipped_png.name, horizontal_png.name],
         data_glob=csv_path.name,
     )
     png_sidecar.make_self_contained(

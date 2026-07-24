@@ -126,7 +126,7 @@ whitelist are tracked.
 | `executable_popularity.csv` + 3 PNGs | ranked usage, pooled, per-provider, and compact top-15 per-provider |
 | `executable_runtime.csv` + PNG | per-executable raw-latency percentiles + box plots |
 | `executable_total_latency_top15.csv` + PNG | each provider's top 15 executables by summed raw latency |
-| `executable_runtime_updated.csv` + PNG | per-executable observable full-command duration percentiles + box plots |
+| `executable_runtime_updated.csv` + 3 PNGs | per-executable observable full-command duration percentiles + box plots, including stacked and left-right provider-colored 100 ms views |
 | `executable_total_latency_updated_top15.csv` + PNG | each provider's top 15 executables by summed completed-command time |
 | `command_stats.json` / `command_stats.md` | coverage/shape stats + the website table |
 | `executable_privacy_review.csv` | **private:** all original names, proposed class, and public label |
@@ -215,6 +215,11 @@ moves from a 1 ms median / 493 ms p90 to 146 ms / 769 ms; `git` from 51 ms / 764
 effective call latency already covers its `Bash` call. The updated Codex panel retains 163,519
 single-executable calls and excludes 3,147 without an observed successful finish, so unfinished,
 aborted, failed, and session-error chains do not masquerade as completed command durations.
+
+`executable_runtime_updated_provider_colors_100ms.png` is the presentation variant of the same
+data. It matches the popularity plots' provider palette (Claude orange, Codex blue), clips the
+logarithmic x-axis to 100 ms–20 min, and leaves the original full-range plot unchanged. The
+`_left_right` variant places the two provider panels side by side for direct comparison.
 
 ### executable_total_latency_top15.png
 

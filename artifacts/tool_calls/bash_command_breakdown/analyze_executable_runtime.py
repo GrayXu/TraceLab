@@ -288,7 +288,13 @@ def plot_runtime(
         "0-second commands floored to 1 ms; multi-exe pipelines & chains excluded"
     ),
     output_name: str = "executable_runtime.png",
+    x_min_ms: float | None = None,
+    x_max_ms: float | None = None,
+    color_by_provider: bool = False,
+    layout: str = "vertical",
 ) -> Path:
+    if layout not in {"vertical", "horizontal"}:
+        raise ValueError(f"unsupported runtime panel layout: {layout}")
     providers = provider_order(lat)
     panels = []
     global_max = 1.0
@@ -310,15 +316,29 @@ def plot_runtime(
             global_max = max(global_max, max(vals))
 
     panel_heights = [max(2.8, 0.34 * len(shown) + 1.7) for _p, shown, _d in panels]
-    fig, axes = plt.subplots(len(panels), 1, figsize=(14.0, sum(panel_heights)),
-                             squeeze=False, gridspec_kw={"height_ratios": panel_heights})
-    fig.suptitle(figure_title, y=0.998, fontsize=17)
+    if layout == "horizontal":
+        fig, axes = plt.subplots(
+            1, 2, figsize=(12.8, max(5.0, 0.32 * top + 1.9)), squeeze=False
+        )
+    else:
+        fig, axes = plt.subplots(
+            len(panels),
+            1,
+            figsize=(14.0, sum(panel_heights)),
+            squeeze=False,
+            gridspec_kw={"height_ratios": panel_heights},
+        )
+        fig.suptitle(figure_title, y=0.998, fontsize=17)
 
-    for ax, (prov, shown, dropped) in zip(axes.ravel(), panels):
+    for panel_index, (ax, (prov, shown, dropped)) in enumerate(
+        zip(axes.ravel(), panels, strict=True)
+    ):
         data = [vals for _exe, vals in shown]
         labels = [f"{short_label(exe, 26)}  (n={len(vals):,})" for exe, vals in shown]
         ax.set_xscale("log")
         ax.set_xticks(latency_ticks(global_max))
+        if x_min_ms is not None or x_max_ms is not None:
+            ax.set_xlim(left=x_min_ms, right=x_max_ms)
         ax.xaxis.set_major_formatter(mticker.FuncFormatter(format_latency_tick))
         ax.xaxis.set_minor_formatter(mticker.NullFormatter())
         polish_axes(ax, grid_axis="x", minor=True)
@@ -328,30 +348,56 @@ def plot_runtime(
                        medianprops={"color": TEXT_COLOR, "linewidth": 1.4},
                        whiskerprops={"color": MUTED_TEXT, "linewidth": 1.0},
                        capprops={"color": MUTED_TEXT, "linewidth": 1.0})
+        panel_color = plot_color(prov, panel_index)
         for patch in box["boxes"]:
-            patch.set_facecolor(BOX_FACE)
-            patch.set_edgecolor(BOX_EDGE)
+            patch.set_facecolor(panel_color if color_by_provider else BOX_FACE)
+            patch.set_edgecolor(panel_color if color_by_provider else BOX_EDGE)
             patch.set_alpha(0.82)
             patch.set_linewidth(1.0)
         ax.invert_yaxis()  # slowest median at the top
 
-        title = (f"{provider_title(prov)} — {len(shown)} executables by median runtime "
-                 f"(≥{min_calls} single-exe calls)")
-        if dropped > 0:
-            title += f"; {dropped} rarer not shown"
+        if layout == "horizontal":
+            ax.set_title(
+                provider_title(prov),
+                loc="left",
+                pad=8,
+                fontsize=13.5,
+                fontweight="semibold",
+                color=panel_color,
+            )
+        else:
+            title = (f"{provider_title(prov)} — {len(shown)} executables by median runtime "
+                     f"(≥{min_calls} single-exe calls)")
+            if dropped > 0:
+                title += f"; {dropped} rarer not shown"
+            ax.text(0.0, 1.05, title, transform=ax.transAxes, ha="left", va="bottom",
+                    fontsize=13.5, fontweight="semibold", color=TEXT_COLOR)
         cov = coverage.get(prov, {})
         total, timed = cov.get("total", 0), cov.get("timed", 0)
         frac = (timed / total) if total else 0.0
-        ax.text(0.0, 1.05, title, transform=ax.transAxes, ha="left", va="bottom",
-                fontsize=13.5, fontweight="semibold", color=TEXT_COLOR)
-        ax.text(0.0, 1.01,
+        if layout != "horizontal":
+            ax.text(
+                0.0,
+                1.01,
                 f"single-executable calls only — {timed:,} of {total:,} ({frac:.0%}); "
                 f"{subtitle_suffix}",
-                transform=ax.transAxes, ha="left", va="bottom", fontsize=9.3, color=MUTED_TEXT)
+                transform=ax.transAxes,
+                ha="left",
+                va="bottom",
+                fontsize=9.3,
+                color=MUTED_TEXT,
+            )
         ax.set_xlabel(x_label, fontsize=12.5, labelpad=8)
         ax.tick_params(axis="y", labelsize=11)
+        if layout == "horizontal":
+            ax.tick_params(axis="x", labelsize=11.5)
 
-    fig.tight_layout(rect=(0, 0, 1, 0.99), h_pad=2.4)
+    if layout == "horizontal":
+        fig.suptitle(figure_title, x=0.5, y=0.995, fontsize=14.5,
+                     fontweight="semibold", color=TEXT_COLOR)
+        fig.tight_layout(rect=(0, 0, 1, 0.998))
+    else:
+        fig.tight_layout(rect=(0, 0, 1, 0.99), h_pad=2.4)
     out = out_dir / output_name
     save_plot(fig, out)
     return out
