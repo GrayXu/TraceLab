@@ -27,6 +27,16 @@ def round_exclusion_reason(record: dict[str, Any]) -> str | None:
         model = record.get("model")
         if not isinstance(model, str) or not model:
             return "codex_missing_model"
+        timing_events = record.get("timing_events")
+        tools = record.get("tools")
+        if (
+            isinstance(timing_events, list)
+            and len(timing_events) == 1
+            and isinstance(timing_events[0], dict)
+            and timing_events[0].get("event_type") == "usage_report"
+            and (not isinstance(tools, list) or not tools)
+        ):
+            return "codex_usage_only_replay"
     return None
 
 

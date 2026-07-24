@@ -650,6 +650,19 @@ def extract_codex_session(
                         raw_segment_tools = []
                         raw_tool_by_id.clear()
                     continue
+                if (
+                    not pending_input_events
+                    and not segment_timing_events
+                    and not segment_tools
+                ):
+                    # Forked/resumed rollout files can replay historical
+                    # token_count events at startup after a turn_context has
+                    # already set current_model. With no input, output, or tool
+                    # activity, this is accounting replay rather than a new LLM
+                    # invocation. Do not advance last_total_sig: a later live
+                    # segment with the same cumulative total must remain
+                    # eligible for extraction.
+                    continue
                 total_sig = json.dumps(total_usage, sort_keys=True)
                 if total_sig == last_total_sig:
                     continue

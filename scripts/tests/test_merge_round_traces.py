@@ -141,3 +141,39 @@ def test_merge_excludes_model_less_codex_artifacts(
     assert report["excluded_rows"] == 1
     assert report["inputs"][0]["excluded_reasons"] == {"codex_missing_model": 1}
     assert round_exclusion_reason(artifact) == "codex_missing_model"
+
+
+def test_merge_excludes_codex_usage_only_replays(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TMPDIR", str(tmp_path))
+    input_path = tmp_path / "input.jsonl"
+    output_path = tmp_path / "merged.jsonl"
+    replay = {
+        "provider": "codex",
+        "session_id": "codex:fork",
+        "round_id": "turn:0",
+        "model": "gpt-test",
+        "timing_events": [{"event_type": "usage_report"}],
+        "tools": [],
+    }
+    live = {
+        **replay,
+        "session_id": "codex:original",
+        "timing_events": [
+            {"event_type": "user_message"},
+            {"event_type": "text"},
+            {"event_type": "usage_report"},
+        ],
+    }
+    write_trace(input_path, [replay, live])
+
+    report = merge_round_traces([input_path], output_path)
+
+    assert read_trace(output_path) == [live]
+    assert report["excluded_rows"] == 1
+    assert report["inputs"][0]["excluded_reasons"] == {
+        "codex_usage_only_replay": 1
+    }
+    assert round_exclusion_reason(replay) == "codex_usage_only_replay"
