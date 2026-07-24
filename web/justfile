@@ -2,8 +2,8 @@
 # uv owns Python; npm owns JS; this file is the single command surface.
 #
 #   just all                              # render the default trace -> assets -> site
-#   just all input=trace/sample.jsonl     # same, but from a trace you pick
-#   just render input=trace/foo.jsonl     # just the toolkit render (figures + summary.json)
+#   just all database=trace/foo.duckdb    # same, but from a database you pick
+#   just render database=trace/foo.duckdb # just the toolkit render (figures + summary.json)
 #   just assets                           # copy figures + summary.json into app/public
 #   just start-all                        # remote vLLM + AI backend + contributor backend + frontend
 #   just dev-all                          # local AI backend + contributor backend + frontend dev server
@@ -11,22 +11,25 @@
 #   just dev                              # astro dev server only
 #   just site                             # astro production build
 #
-# The figures AND the headline numbers both come from ONE render of `input`, so the site is
+# The figures AND the headline numbers both come from ONE render of `database`, so the site is
 # always internally consistent — no mixing of a sample render with a different summary.json.
 
 web_dir := justfile_directory()
 repo := justfile_directory() / ".."
 
-# Default trace the site is built from (relative to the repo root). Override per-invocation.
-input := "trace/syfi_coding_trace.jsonl"
+# Default trace database the site is built from (relative to the repo root). Override per-invocation.
+database := "trace/syfi_coding_trace.duckdb"
 
 # Render figures + summary.json from the chosen trace (writes into artifacts/).
-render input=input:
-    cd "{{repo}}" && uv run python artifacts/run_all.py --input "{{input}}"
+render database=database:
+    cd "{{repo}}" && uv run python artifacts/run_all.py --db "{{database}}"
 
 # Fast render over the bundled sample trace (Claude-only — handy for quick UI iteration).
 render-sample:
-    cd "{{repo}}" && uv run python artifacts/run_all.py --input trace/sample.jsonl
+    cd "{{repo}}" && uv run python artifacts/run_all.py \
+      --build-db \
+      --input trace/collections/20260607T091007Z/legacy/sample.jsonl \
+      --db trace/collections/20260607T091007Z/legacy/sample.duckdb
 
 # Copy pre-rendered figures + summary.json into app/public (idempotent; skips what isn't rendered yet).
 assets:
@@ -40,8 +43,8 @@ dev:
 site:
     cd "{{web_dir}}/app" && npm run build
 
-# End-to-end from one trace: render -> copy assets -> build the site.
-all input=input: (render input) assets site
+# End-to-end from one trace database: render -> copy assets -> build the site.
+all database=database: (render database) assets site
 
 # Headless screenshots of a mockup (defaults to scheme-04-atelier). Dev utility — one-time setup:
 #   cd web/tools/shots && npm install && npm run browser

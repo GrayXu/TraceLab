@@ -27,7 +27,7 @@ growing the whole time — only the cache went cold.
 Run::
 
     uv run python artifacts/prefix_cache/timeout_miss_pattern/plot.py
-    uv run python artifacts/prefix_cache/timeout_miss_pattern/plot.py -o /tmp/out
+    uv run python artifacts/prefix_cache/timeout_miss_pattern/plot.py -o "$TMPDIR/out"
 """
 
 from __future__ import annotations

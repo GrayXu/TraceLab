@@ -51,7 +51,7 @@ uv run python artifacts/tool_calls/tool_call_counts/plot.py
 uv run python artifacts/tool_calls/tool_call_counts/plot.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/tool_calls/tool_call_counts/plot.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/tool_calls/tool_call_counts/plot.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 ```
 
 实用参数：`--top-tools`（每个面板最多柱数，默认 30）、`--min-tool-calls-for-plot`
@@ -64,7 +64,7 @@ uv run python artifacts/tool_calls/tool_call_counts/plot.py --db /tmp/trace.duck
   外加图的几何列（`panel_cap`、`call_plot_width`、`call_is_clipped`、…）。
 
 该 PNG 是自包含的——它嵌入了本 README、CSV 以及绘图代码。用
-`python artifacts/utils/png_sidecar.py extract <png>` 解包。
+`uv run python artifacts/utils/png_sidecar.py extract <png>` 解包。
 
 ## SyFI result analysis
 

@@ -21,7 +21,7 @@
 ```bash
 uv run python artifacts/run_all.py \
   --only llm_generation/append_vs_prefix_latency \
-  --input trace/llm_round_trace.public.jsonl
+  --db trace/syfi_coding_trace.duckdb
 ```
 
 dispatcher 会先从 `--input` 构建 `../timing_fit/timing_fit_trace.csv`。手动直接运行时假定该 CSV 已存在：
@@ -38,7 +38,7 @@ uv run python artifacts/llm_generation/append_vs_prefix_latency/analyze.py
 
 ## 独立 PNG
 
-每张 PNG 都嵌入了本 README、各 CSV，以及 `analyze.py`。可用 `python artifacts/utils/png_sidecar.py extract <png>` 解包。
+每张 PNG 都嵌入了本 README、各 CSV，以及 `analyze.py`。可用 `uv run python artifacts/utils/png_sidecar.py extract <png>` 解包。
 
 ## SyFI result analysis
 

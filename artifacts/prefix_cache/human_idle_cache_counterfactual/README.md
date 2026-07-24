@@ -56,7 +56,7 @@ uv run python artifacts/prefix_cache/human_idle_cache_counterfactual/analyze.py
 
 # a prebuilt DB, into a chosen dir
 uv run python artifacts/prefix_cache/human_idle_cache_counterfactual/analyze.py \
-  --db trace/syfi_coding_trace.duckdb -o /tmp/out
+  --db trace/syfi_coding_trace.duckdb -o "$TMPDIR/out"
 ```
 
 ## Outputs

@@ -18,22 +18,31 @@ Use this skill to prepare normalized round traces for sharing. The sanitizer tar
 
 ## Main Commands
 
-Sanitize the default private trace to a public output:
+Sanitize one timestamped private collection without writing loose files at the `trace/` root:
 
 ```bash
-uv run python scripts/sanitize_round_trace.py trace/llm_round_trace.jsonl -o trace/llm_round_trace.public.jsonl
+collection_directory="trace/collections/<collection_id>"
+uv run python scripts/sanitize_round_trace.py \
+  "${collection_directory}/merged.private.jsonl" \
+  -o "${collection_directory}/merged.public.jsonl"
 ```
 
 Use a named deterministic seed:
 
 ```bash
-uv run python scripts/sanitize_round_trace.py trace/llm_round_trace.jsonl -o trace/share.jsonl --seed my-release-v1
+uv run python scripts/sanitize_round_trace.py \
+  "${collection_directory}/merged.private.jsonl" \
+  -o "${collection_directory}/merged.public.jsonl" \
+  --seed my-release-v1
 ```
 
 Use a fresh random seed:
 
 ```bash
-uv run python scripts/sanitize_round_trace.py trace/llm_round_trace.jsonl -o trace/share.jsonl --random-seed
+uv run python scripts/sanitize_round_trace.py \
+  "${collection_directory}/merged.private.jsonl" \
+  -o "${collection_directory}/merged.public.jsonl" \
+  --random-seed
 ```
 
 The all-user sudo wrapper can sanitize immediately after collection:
@@ -45,8 +54,13 @@ scripts/collect_all_users_sudo.sh --sanitize
 After sanitizing, use the sanitized output for public analysis and validators:
 
 ```bash
-uv run python artifacts/run_all.py --input trace/llm_round_trace.public.jsonl
-uv run python validators/run_all.py --input trace/llm_round_trace.public.jsonl
+uv run python artifacts/utils/trace_db.py \
+  trace/collections/current/merged.public.jsonl \
+  trace/collections/current/merged.public.duckdb
+uv run python artifacts/run_all.py \
+  --db trace/collections/current/merged.public.duckdb
+uv run python validators/run_all.py \
+  --db trace/collections/current/merged.public.duckdb
 ```
 
 ## What The Sanitizer Does
@@ -73,23 +87,27 @@ If the user wants to share raw examples, inspect or create public raw examples s
 After sanitizing, run a shape summary:
 
 ```bash
-uv run python artifacts/trace_facts/overview_summary/analyze.py -i trace/llm_round_trace.public.jsonl --json
+uv run python artifacts/utils/trace_db.py \
+  trace/collections/current/merged.public.jsonl \
+  trace/collections/current/merged.public.duckdb
+uv run python artifacts/trace_facts/overview_summary/analyze.py \
+  --db trace/collections/current/merged.public.duckdb --json
 ```
 
 Use targeted searches for obvious leftovers:
 
 ```bash
-rg -n '"(cwd|home|session_file|workdir)"' trace/llm_round_trace.public.jsonl
+rg -n '"(cwd|home|session_file|workdir)"' "${collection_directory}/merged.public.jsonl"
 ```
 
 ```bash
-rg -n '"input":' trace/llm_round_trace.public.jsonl
+rg -n '"input":' "${collection_directory}/merged.public.jsonl"
 ```
 
 Empty search output is a useful smoke test, not a complete privacy audit. `user` fields
 are expected to remain, but their values should look like `user_<hex>`. When reporting
 results, state the sanitizer's exact scope and any remaining review risk.
 
-For an end-to-end smoke test, run the artifact dispatcher and validator dispatcher on the
-sanitized file. The artifact dispatcher will derive the local timing-fit CSV from the same
-sanitized JSONL trace before timing analyses consume it.
+For an end-to-end smoke test, materialize the sanitized file once and run the artifact and
+validator dispatchers against that DuckDB. The artifact dispatcher derives the local timing-fit
+CSV from the same database before timing analyses consume it.

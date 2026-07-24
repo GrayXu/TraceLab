@@ -66,7 +66,7 @@ uv run python artifacts/tool_calls/claude_long_tool_calls/analyze.py
 uv run python artifacts/tool_calls/claude_long_tool_calls/analyze.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/tool_calls/claude_long_tool_calls/analyze.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/tool_calls/claude_long_tool_calls/analyze.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 ```
 
 Useful flag: `--threshold-ms` (long-call cutoff in ms, default `3,600,000` = 1h). For exact

@@ -52,10 +52,10 @@ comment in the generated file. `\prefillamplificationfactor` is the
 uv run python artifacts/trace_facts/paper_macros/analyze.py
 
 # the pinned public trace
-uv run python artifacts/trace_facts/paper_macros/analyze.py -i trace/syfi_coding_trace.jsonl
+uv run python artifacts/trace_facts/paper_macros/analyze.py --db trace/syfi_coding_trace.duckdb
 
 # a prebuilt DB, into a chosen dir
-uv run python artifacts/trace_facts/paper_macros/analyze.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/trace_facts/paper_macros/analyze.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 ```
 
 ## Outputs

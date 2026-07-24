@@ -67,6 +67,7 @@ web/app/public/paper.pdf
 .codex/skills/serve-vllm-ptc/
 # Local-only runbook: internal multi-host trace recollection and release refresh.
 .codex/skills/recollect-traces/
+/uw-syfi.github.io/
 /blog/
 
 # Local snapshots of the tool-input sampling experiment.

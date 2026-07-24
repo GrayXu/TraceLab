@@ -85,10 +85,9 @@ Method and assumptions:
 - `percentile` / `hours` / `fmt_h` / `fmt_s` — the residual percentile and number formatting used in
   the markdown tables (unchanged).
 - `main()` — wires the standard `trace_db` CLI (`--db` | `-i/--input` | `-o/--output-dir`), runs the
-  stateful per-session walk, and writes the markdown report. To keep the `run_all.py` / web-driver
-  `style="global"` contract working, a module-level `INPUT` default remains: the driver assigns
-  `module.INPUT = <path>` and calls `main()` with no flags, and `main()` falls back to `INPUT` when
-  neither `--db` nor an explicit `-i` is given.
+  stateful per-session walk, and writes the markdown report. `run_all.py` passes `--db <path>`;
+  direct runs use the released DuckDB by default. `-i/--input` remains only as a compatibility path
+  that materializes an explicitly selected JSONL trace.
 
 The data layer (parsing, surrogate keys, schema) lives in `artifacts/utils/trace_db.py`; see
 `artifacts/utils/DB_SCHEMA.md`.
@@ -102,13 +101,13 @@ uv run python artifacts/human_in_the_loop/user_turn_decomposition/analyze.py
 # a specific trace (materialized to a temp DuckDB cache on first use)
 uv run python artifacts/human_in_the_loop/user_turn_decomposition/analyze.py -i trace/sample.jsonl
 
-# a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/human_in_the_loop/user_turn_decomposition/analyze.py --db /tmp/trace.duckdb -o /tmp/out
+# a different prebuilt DB, into a chosen directory
+uv run python artifacts/human_in_the_loop/user_turn_decomposition/analyze.py \
+  --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/user_turn_decomposition"
 ```
 
-The `run_all.py` registry launches this experiment with `style="global"` (no CLI flag): the shim
-imports the module, sets `module.INPUT = <trace>`, and calls `main()`, which honors that `INPUT` as
-its `-i` default.
+The `run_all.py` registry launches this `style="direct"` experiment against its selected DuckDB
+with `--db`.
 
 ## Outputs
 

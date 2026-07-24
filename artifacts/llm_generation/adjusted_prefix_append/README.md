@@ -77,7 +77,7 @@ uv run python artifacts/llm_generation/adjusted_prefix_append/plot.py
 uv run python artifacts/llm_generation/adjusted_prefix_append/plot.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/llm_generation/adjusted_prefix_append/plot.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/llm_generation/adjusted_prefix_append/plot.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 ```
 
 Useful flags: `--subtract-policy` (`claude-and-gpt55` / `all`), `--subtract-output`
@@ -96,7 +96,7 @@ Written to `-o` (default this folder):
 
 The PNG is self-contained — it embeds this README, the summary CSV, and the plotting code
 (`plot.py` + shared `artifacts/utils/` modules). Unpack with
-`python artifacts/utils/png_sidecar.py extract <png>`.
+`uv run python artifacts/utils/png_sidecar.py extract <png>`.
 
 ## SyFI result analysis
 

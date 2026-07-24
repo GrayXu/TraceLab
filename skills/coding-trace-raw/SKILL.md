@@ -61,7 +61,7 @@ When interpreting Codex:
 Use the finder when the user needs compact raw examples from local histories:
 
 ```bash
-python scripts/find_representative_session_segments.py --provider claude codex --export-dir artifacts/raw_windows
+uv run python scripts/find_representative_session_segments.py --provider claude codex --export-dir artifacts/raw_windows
 ```
 
 Useful options:

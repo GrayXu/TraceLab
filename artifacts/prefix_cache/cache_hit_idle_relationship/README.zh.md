@@ -86,7 +86,7 @@ uv run python artifacts/prefix_cache/cache_hit_idle_relationship/plot_user_wait_
 uv run python artifacts/prefix_cache/cache_hit_idle_relationship/cache_hit_idle_gap_analysis.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/prefix_cache/cache_hit_idle_relationship/plot_user_wait_time_vs_hit_rate.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/prefix_cache/cache_hit_idle_relationship/plot_user_wait_time_vs_hit_rate.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 
 # a single scatter
 uv run python artifacts/prefix_cache/cache_hit_idle_relationship/plot_user_wait_time_vs_hit_rate.py --trigger user
@@ -105,7 +105,7 @@ uv run python artifacts/prefix_cache/cache_hit_idle_relationship/plot_user_wait_
 - `tool_result_wait_time_vs_hit_rate_scatter.png` —— 工具时长 vs 命中率,Claude/Codex 面板。
 
 每个散点 PNG 都是自包含的 —— 它内嵌了本 README、间隔汇总 CSV 以及两个脚本。
-用 `python artifacts/utils/png_sidecar.py extract <png>` 解包。
+用 `uv run python artifacts/utils/png_sidecar.py extract <png>` 解包。
 
 ## SyFI result analysis
 

@@ -40,7 +40,7 @@ uv run python artifacts/session/total_input_growth/analyze.py
 uv run python artifacts/session/total_input_growth/analyze.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/session/total_input_growth/analyze.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/session/total_input_growth/analyze.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 ```
 
 旋钮：`--micro-reduction-max-tokens` / `--major-reduction-min-tokens` 重新调校缩减桶，

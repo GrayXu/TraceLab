@@ -108,10 +108,8 @@ The equivalent manual commands are:
 
 ```bash
 BASE=artifacts/tool_calls/bash_command_breakdown
-TRACE=trace/llm_round_trace_v2.merged.all_users.public.jsonl
-DB=trace/llm_round_trace_v2.merged.all_users.public.duckdb
+DB=trace/syfi_coding_trace.duckdb
 
-uv run python artifacts/utils/trace_db.py $TRACE $DB
 uv run python $BASE/classify_commands.py --db $DB
 uv run python $BASE/analyze_popularity.py               # popularity CSV + 3 figures
 uv run python $BASE/analyze_executable_runtime.py       # runtime CSV + figure

@@ -5,8 +5,7 @@ samples, and why? (A coverage/validity audit for the `user_turn_response_time` m
 
 ## Input
 
-`trace/llm_round_trace.merged.all_users.jsonl` (edit `INPUT` in `analyze.py` to
-override).
+`trace/syfi_coding_trace.duckdb` by default; use `--db` for another materialized trace.
 
 ## Method / key assumptions
 
@@ -22,7 +21,7 @@ override).
 uv run python validators/human_in_the_loop/user_turn_response_audit/analyze.py
 ```
 
-(For a fast check, temporarily point `INPUT` at `trace/sample.jsonl`.)
+(For a fast check, pass `--db` with a smaller materialized database.)
 
 ## Outputs (written here)
 

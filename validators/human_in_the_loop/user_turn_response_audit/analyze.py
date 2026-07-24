@@ -3,7 +3,8 @@
 
 from __future__ import annotations
 
-import json
+import argparse
+import sys
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
@@ -12,8 +13,9 @@ from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]  # experiment -> category -> artifacts -> repo root
-INPUT = REPO_ROOT / "trace" / "llm_round_trace.merged.all_users.jsonl"
 OUT_MD = Path(__file__).with_name("result_analysis.md")
+sys.path.insert(0, str(REPO_ROOT / "validators"))
+from trace_rows import DEFAULT_DB, iter_rounds  # noqa: E402
 
 MODEL_OUTPUT_EVENT_TYPES = {"reasoning", "text", "tool_call"}
 
@@ -146,6 +148,9 @@ def format_sample(turn: Turn, reason: str) -> str:
 
 
 def main() -> int:
+    argument_parser = argparse.ArgumentParser(description=__doc__)
+    argument_parser.add_argument("--db", type=Path, default=DEFAULT_DB)
+    arguments = argument_parser.parse_args()
     user_triggered = Counter()
     response_samples = Counter()
     dropped_no_output = Counter()
@@ -180,48 +185,42 @@ def main() -> int:
         elif reason == "eof":
             closed_by_eof[turn.provider] += 1
 
-    with INPUT.open("r", encoding="utf-8", errors="replace") as fh:
-        for line_no, line in enumerate(fh, start=1):
-            if not line.strip():
-                continue
-            row = json.loads(line)
-            if not isinstance(row, dict):
-                continue
-            provider = str(row.get("provider") or "<unknown-provider>")
-            session_id_value = row.get("session_id")
-            session_id = session_id_value if isinstance(session_id_value, str) else None
-            types = event_types(row)
-            user_start_at = response_trigger_user_message_timestamp(row)
-            if "user_message" in types:
-                visible_user_any[provider] += 1
-                nontrigger_reason = visible_user_nontrigger_reason(row)
-                if nontrigger_reason is not None:
-                    visible_user_not_trigger[(provider, nontrigger_reason)] += 1
-                elif session_id is None:
-                    visible_user_not_trigger[(provider, "missing_session")] += 1
-            if types:
-                first_event_counts[(provider, types[0])] += 1
+    for line_no, row in iter_rounds(arguments.db, include_tools=False):
+        provider = str(row.get("provider") or "<unknown-provider>")
+        session_id_value = row.get("session_id")
+        session_id = session_id_value if isinstance(session_id_value, str) else None
+        types = event_types(row)
+        user_start_at = response_trigger_user_message_timestamp(row)
+        if "user_message" in types:
+            visible_user_any[provider] += 1
+            nontrigger_reason = visible_user_nontrigger_reason(row)
+            if nontrigger_reason is not None:
+                visible_user_not_trigger[(provider, nontrigger_reason)] += 1
+            elif session_id is None:
+                visible_user_not_trigger[(provider, "missing_session")] += 1
+        if types:
+            first_event_counts[(provider, types[0])] += 1
 
-            if user_start_at is not None and session_id is not None:
-                close_turn(session_id, "next_user_message")
-                user_triggered[provider] += 1
-                active_by_session[session_id] = Turn(
-                    session_id=session_id,
-                    provider=provider,
-                    start_at=user_start_at,
-                    line_no=line_no,
-                    row_id=row_identifier(row, line_no),
-                    event_types=types,
-                )
+        if user_start_at is not None and session_id is not None:
+            close_turn(session_id, "next_user_message")
+            user_triggered[provider] += 1
+            active_by_session[session_id] = Turn(
+                session_id=session_id,
+                provider=provider,
+                start_at=user_start_at,
+                line_no=line_no,
+                row_id=row_identifier(row, line_no),
+                event_types=types,
+            )
 
-            output_at = last_model_output_timestamp(row)
-            if output_at is not None and session_id is not None:
-                turn = active_by_session.get(session_id)
-                if turn is not None and (
-                    turn.last_output_at is None or output_at > turn.last_output_at
-                ):
-                    turn.last_output_at = output_at
-                    turn.output_line_no = line_no
+        output_at = last_model_output_timestamp(row)
+        if output_at is not None and session_id is not None:
+            turn = active_by_session.get(session_id)
+            if turn is not None and (
+                turn.last_output_at is None or output_at > turn.last_output_at
+            ):
+                turn.last_output_at = output_at
+                turn.output_line_no = line_no
 
     for session_id in list(active_by_session):
         close_turn(session_id, "eof")
@@ -230,7 +229,7 @@ def main() -> int:
     lines = [
         "# User Turn Response Time Audit",
         "",
-        f"Input: `{INPUT}`",
+        f"Input: `{arguments.db}`",
         "",
         "A response-time sample is counted only when the latest `user_message` before a row's first model-output event has a later same-session model-output event before the next such `user_message` or EOF.",
         "",

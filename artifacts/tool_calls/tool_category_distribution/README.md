@@ -57,7 +57,7 @@ uv run python artifacts/tool_calls/tool_category_distribution/analyze.py
 uv run python artifacts/tool_calls/tool_category_distribution/analyze.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/tool_calls/tool_category_distribution/analyze.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/tool_calls/tool_category_distribution/analyze.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 ```
 
 ## Outputs
@@ -77,7 +77,7 @@ uv run python artifacts/tool_calls/tool_category_distribution/analyze.py --db /t
 - `result_analysis.md` — generated run log.
 
 The PNGs are self-contained — each embeds this README, the CSVs, and the plotting code. Unpack with
-`python artifacts/utils/png_sidecar.py extract <png>`.
+`uv run python artifacts/utils/png_sidecar.py extract <png>`.
 
 ## SyFI result analysis
 

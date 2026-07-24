@@ -6,11 +6,11 @@ up to ``--jobs`` at a time (default 16). Each experiment writes its outputs into
 own folder; this script just invokes them with the right input flag, captures each
 one's console output to a per-experiment log file, and reports pass/fail + duration.
 
-The registry below is the manifest of all experiments and how each is launched —
-some take ``-i``, some ``--input``, a few read a module-level ``INPUT`` default,
-``csv_export`` needs ``-i``/``-o``, ``overview_summary`` prints to stdout (captured to
-``summary.json``), ``timing_fit/build_trace`` derives the local timing CSV from the
-JSONL trace, and dependency-aware multi-step artifacts such as
+The registry below is the manifest of all experiments and how each is launched.
+DB-backed experiments receive ``--db``; ``csv_export`` additionally needs an output,
+``overview_summary`` prints to stdout (captured to ``summary.json``),
+``timing_fit/build_trace`` derives the local timing CSV from the DuckDB trace, and
+dependency-aware multi-step artifacts such as
 ``bash_command_breakdown`` are scheduled in their required order.
 
 Examples
@@ -19,7 +19,7 @@ Examples
     uv run python artifacts/run_all.py
 
     # rebuild a compact DuckDB from JSONL first, then run everything against it
-    uv run python artifacts/run_all.py --build-db --input trace/syfi_coding_trace.jsonl --db trace/syfi_coding_trace.duckdb
+    uv run python artifacts/run_all.py --build-db --input trace/syfi_coding_trace.jsonl.gz --db trace/syfi_coding_trace.duckdb
 
     # serial, or a different width
     uv run python artifacts/run_all.py --jobs 1
@@ -50,7 +50,7 @@ from pathlib import Path
 
 ARTIFACTS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = ARTIFACTS_DIR.parent
-DEFAULT_JSONL = Path("trace") / "syfi_coding_trace.jsonl"
+DEFAULT_JSONL = Path("trace") / "syfi_coding_trace.jsonl.gz"
 DEFAULT_DB = Path("trace") / "syfi_coding_trace.duckdb"
 DEFAULT_TIMING = ARTIFACTS_DIR / "llm_generation" / "timing_fit" / "timing_fit_trace.csv"
 DEFAULT_JOBS = 16
@@ -67,29 +67,12 @@ def repo_relative(path: Path) -> Path:
     """Resolve relative CLI paths against the repository root."""
     return path if path.is_absolute() else REPO_ROOT / path
 
-# Shim used to drive experiments whose input is a module-level INPUT global
-# (they have no -i/--input flag): import the script, override INPUT, call main().
-GLOBAL_SHIM = (
-    "import sys, pathlib, importlib.util as u\n"
-    "script = pathlib.Path(sys.argv[1]).resolve()\n"
-    "inp = pathlib.Path(sys.argv[2]).resolve()\n"
-    "sys.path.insert(0, str(script.parent))\n"
-    "spec = u.spec_from_file_location('exp_module', script)\n"
-    "mod = u.module_from_spec(spec)\n"
-    "sys.modules[spec.name] = mod\n"  # needed so @dataclass et al. can resolve the module
-    "spec.loader.exec_module(mod)\n"
-    "mod.INPUT = inp\n"
-    "rc = mod.main()\n"
-    "sys.exit(rc if isinstance(rc, int) else 0)\n"
-)
-
-
 @dataclass(frozen=True)
 class Experiment:
     category: str
     name: str
     script: str           # path relative to artifacts/
-    style: str            # "-i" | "--input" | "global" | "io" | "stdout" | "none" | "timing-build" | "db-build"
+    style: str            # "-i" | "--input" | "direct" | "io" | "stdout" | "none" | "timing-build" | "db-build"
     data: str = "jsonl"   # "jsonl" -> merged trace, "timing" -> timing CSV, "db" -> trace DuckDB (--db)
     after: str | tuple[str, ...] = ""  # experiment name(s) that must finish first
 
@@ -119,12 +102,12 @@ EXPERIMENTS: list[Experiment] = [
     Experiment("llm_generation", "timing_fit", "llm_generation/timing_fit/fit_timing_trace.py", "-i", "timing", after=TIMING_BUILD_NAME),
     Experiment("llm_generation", "timing_feature_ambiguity", "llm_generation/timing_feature_ambiguity/analyze.py", "-i", "timing", after="timing_fit"),
     Experiment("llm_generation", "timing_feature_ambiguity/build_summary", "llm_generation/timing_feature_ambiguity/build_summary.py", "none", "jsonl", after="timing_feature_ambiguity"),
-    Experiment("llm_generation", "token_spindles", "llm_generation/token_spindles/plot.py", "global", "db", after=BUILD_DB_NAME),
+    Experiment("llm_generation", "token_spindles", "llm_generation/token_spindles/plot.py", "direct", "db", after=BUILD_DB_NAME),
     # tool_calls -----------------------------------------------------------
     Experiment("tool_calls", "tool_latency_distribution", "tool_calls/tool_latency_distribution/plot.py", "-i", "db", after=BUILD_DB_NAME),
     Experiment("tool_calls", "tool_call_counts", "tool_calls/tool_call_counts/plot.py", "-i", "db", after=BUILD_DB_NAME),
     Experiment("tool_calls", "tool_time_by_kind", "tool_calls/tool_time_by_kind/plot.py", "-i", "db", after=BUILD_DB_NAME),
-    Experiment("tool_calls", "tool_category_distribution", "tool_calls/tool_category_distribution/analyze.py", "global", "db", after=BUILD_DB_NAME),
+    Experiment("tool_calls", "tool_category_distribution", "tool_calls/tool_category_distribution/analyze.py", "direct", "db", after=BUILD_DB_NAME),
     Experiment("tool_calls", "claude_long_tool_calls", "tool_calls/claude_long_tool_calls/analyze.py", "-i", "db", after=BUILD_DB_NAME),
     Experiment("tool_calls", "codex_wall_internal_gap", "tool_calls/codex_wall_internal_gap/analyze.py", "-i", "db", after=BUILD_DB_NAME),
     # bash_command_breakdown is a dependency-ordered artifact pipeline. The exporter must finish
@@ -154,7 +137,7 @@ EXPERIMENTS: list[Experiment] = [
     # human_in_the_loop ----------------------------------------------------
     Experiment("human_in_the_loop", "human_input_wait", "human_in_the_loop/human_input_wait/plot.py", "-i", "db", after=BUILD_DB_NAME),
     Experiment("human_in_the_loop", "user_turn_response_time", "human_in_the_loop/user_turn_response_time/analyze.py", "-i", "db", after=BUILD_DB_NAME),
-    Experiment("human_in_the_loop", "user_turn_decomposition", "human_in_the_loop/user_turn_decomposition/analyze.py", "global", "db", after=BUILD_DB_NAME),
+    Experiment("human_in_the_loop", "user_turn_decomposition", "human_in_the_loop/user_turn_decomposition/analyze.py", "direct", "db", after=BUILD_DB_NAME),
     # trace_facts ----------------------------------------------------------
     Experiment("trace_facts", "overview_summary", "trace_facts/overview_summary/analyze.py", "stdout", "db", after=BUILD_DB_NAME),
     Experiment("trace_facts", "csv_export", "trace_facts/csv_export/convert.py", "io", "db", after=BUILD_DB_NAME),
@@ -190,11 +173,10 @@ def build_command(exp: Experiment, python: str, jsonl: Path, timing: Path, db: P
 
     if exp.style == "none":
         return [python, str(script)], None
-    if exp.style == "global":
-        # No input flag: db-backed scripts accept --db directly; others go through the INPUT shim.
-        if src is not None:
-            return [python, str(script), *src], None
-        return [python, "-c", GLOBAL_SHIM, str(script), str(inp)], None
+    if exp.style == "direct":
+        if src is None:
+            raise ValueError(f"direct-style experiment must be DB-backed: {exp.name}")
+        return [python, str(script), *src], None
     if exp.style == "io":
         out = script_dir / "coding_trace.csv"
         return [python, str(script), *(src or ["-i", str(inp)]), "-o", str(out)], None
@@ -209,11 +191,7 @@ def build_command(exp: Experiment, python: str, jsonl: Path, timing: Path, db: P
 
 
 def display_command(exp: Experiment, cmd: list[str], redirect: Path | None) -> str:
-    if len(cmd) > 2 and cmd[1] == "-c":  # global-shim: cmd is [python, -c, <shim>, script, input]
-        parts = [cmd[0], "-c", "<global-shim>", *cmd[3:]]
-    else:
-        parts = cmd
-    shown = " ".join(shlex.quote(c) for c in parts)
+    shown = " ".join(shlex.quote(command_part) for command_part in cmd)
     return shown + (f"  > {redirect}" if redirect else "")
 
 
@@ -379,7 +357,7 @@ def main() -> int:
         default=None,
         help=(
             "Existing timing-segment CSV for timing experiments. If omitted, "
-            f"run_all builds and uses {DEFAULT_TIMING} from --input."
+            f"run_all builds and uses {DEFAULT_TIMING} from --db."
         ),
     )
     parser.add_argument("-j", "--jobs", type=int, default=DEFAULT_JOBS, help=f"max experiments to run concurrently (default {DEFAULT_JOBS})")
@@ -444,7 +422,8 @@ def main() -> int:
 
     args.log_dir.mkdir(parents=True, exist_ok=True)
     print(f"Dispatcher: {len(selected)} experiment(s), up to {jobs} at a time", file=sys.stderr)
-    print(f"  jsonl   = {args.input}", file=sys.stderr)
+    if args.build_db:
+        print(f"  jsonl   = {args.input}", file=sys.stderr)
     print(f"  timing  = {timing_input}", file=sys.stderr)
     print(f"  db      = {db_path}", file=sys.stderr)
     print(f"  logs    = {args.log_dir}", file=sys.stderr)

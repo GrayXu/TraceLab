@@ -94,7 +94,7 @@ uv run python artifacts/prefix_cache/cache_hit_idle_relationship/plot_user_wait_
 uv run python artifacts/prefix_cache/cache_hit_idle_relationship/cache_hit_idle_gap_analysis.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/prefix_cache/cache_hit_idle_relationship/plot_user_wait_time_vs_hit_rate.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/prefix_cache/cache_hit_idle_relationship/plot_user_wait_time_vs_hit_rate.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 
 # a single scatter
 uv run python artifacts/prefix_cache/cache_hit_idle_relationship/plot_user_wait_time_vs_hit_rate.py --trigger user
@@ -113,7 +113,7 @@ Written to `-o` (default this folder):
 - `tool_result_wait_time_vs_hit_rate_scatter.png` — tool duration vs hit rate, Claude/Codex panels.
 
 Each scatter PNG is self-contained — it embeds this README, the gap-summary CSV, and both scripts.
-Unpack with `python artifacts/utils/png_sidecar.py extract <png>`.
+Unpack with `uv run python artifacts/utils/png_sidecar.py extract <png>`.
 
 ## SyFI result analysis
 

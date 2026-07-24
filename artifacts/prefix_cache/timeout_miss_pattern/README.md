@@ -62,7 +62,7 @@ No `trace_db` / `--db` / `-i` surface: the only flag is `-o/--output-dir`.
 uv run python artifacts/prefix_cache/timeout_miss_pattern/plot.py
 
 # render elsewhere
-uv run python artifacts/prefix_cache/timeout_miss_pattern/plot.py -o /tmp/out
+uv run python artifacts/prefix_cache/timeout_miss_pattern/plot.py -o "$TMPDIR/out"
 ```
 
 ## Outputs
@@ -70,7 +70,7 @@ uv run python artifacts/prefix_cache/timeout_miss_pattern/plot.py -o /tmp/out
 Written to `-o` (default this folder):
 
 - `timeout_miss_pattern.png` — the schematic. Self-contained: it embeds this README and the script.
-  Unpack with `python artifacts/utils/png_sidecar.py extract <png>`.
+  Unpack with `uv run python artifacts/utils/png_sidecar.py extract <png>`.
 
 ## SyFI result analysis
 

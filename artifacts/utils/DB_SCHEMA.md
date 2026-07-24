@@ -132,7 +132,7 @@ source to fill its `input_preview` column — without a separate `-i`. (A shippe
 
 ```bash
 # materialize + print table counts
-uv run python artifacts/utils/trace_db.py trace/sample.jsonl /tmp/trace.duckdb
+uv run python artifacts/utils/trace_db.py trace/sample.jsonl "$TMPDIR/trace.duckdb"
 ```
 
 In an experiment:

@@ -9,7 +9,7 @@ append-heavy rows separate cleanly from prefix-heavy ones?
 
 `../timing_fit/timing_fit_trace.csv` (override with `-i`) — the long-form
 timing-segment CSV produced by `../timing_fit/collect_timing_fit_trace.py`. **Not** the
-JSONL trace. `artifacts/run_all.py` builds it automatically from `--input` before running
+JSONL trace. `artifacts/run_all.py` builds it automatically from `--db` before running
 this experiment.
 
 ## Method / key assumptions
@@ -34,10 +34,10 @@ Recommended dispatcher path:
 ```bash
 uv run python artifacts/run_all.py \
   --only llm_generation/append_vs_prefix_latency \
-  --input trace/llm_round_trace.public.jsonl
+  --db trace/syfi_coding_trace.duckdb
 ```
 
-The dispatcher builds `../timing_fit/timing_fit_trace.csv` from `--input` first. Manual
+The dispatcher builds `../timing_fit/timing_fit_trace.csv` from `--db` first. Manual
 direct runs assume that CSV already exists:
 
 ```bash
@@ -53,7 +53,7 @@ uv run python artifacts/llm_generation/append_vs_prefix_latency/analyze.py
 ## Self-contained PNGs
 
 Each PNG embeds this README, the CSVs, and `analyze.py`. Unpack with
-`python artifacts/utils/png_sidecar.py extract <png>`.
+`uv run python artifacts/utils/png_sidecar.py extract <png>`.
 
 ## SyFI result analysis
 

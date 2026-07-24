@@ -382,20 +382,20 @@ def parse_args() -> argparse.Namespace:
     # trace_db.add_db_args) instead of calling it, because add_db_args also binds
     # `-o` to --output-dir (a *directory* it mkdir's), which collides with this
     # experiment's `-o`/--output CSV *file* — run_all drives csv_export via the `io`
-    # style (`-i <jsonl> -o <coding_trace.csv>`), so `-o` must stay the output file.
+    # style (`--db <trace.duckdb> -o <coding_trace.csv>`), so `-o` must stay the output file.
     # trace_db.open_from_args reads only args.db / args.input here (output_dir absent).
     parser.add_argument(
         "-i",
         "--input",
         type=Path,
-        default=trace_db.DEFAULT_INPUT,
-        help="normalized JSONL trace (materialized to a temp DuckDB if --db is not given)",
+        default=None,
+        help="optional normalized JSONL override; materialized to a temporary DuckDB",
     )
     parser.add_argument(
         "--db",
         type=Path,
-        default=None,
-        help="prebuilt DuckDB (from trace_db.materialize / run_all's build-db); skips materialize",
+        default=trace_db.DEFAULT_DB,
+        help=f"prebuilt DuckDB (default: {trace_db.DEFAULT_DB})",
     )
     parser.add_argument(
         "-o",

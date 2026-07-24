@@ -41,7 +41,7 @@ uv run python artifacts/llm_generation/adjusted_prefix_append/plot.py
 uv run python artifacts/llm_generation/adjusted_prefix_append/plot.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/llm_generation/adjusted_prefix_append/plot.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/llm_generation/adjusted_prefix_append/plot.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 ```
 
 常用 flag：`--subtract-policy`（`claude-and-gpt55` / `all`）、`--subtract-output`（`total` / `visible-for-codex`）、`--pair-sample-size`（散点子采样，默认 80000）、`--max-groups`（最多绘制的提供商数，默认 8）。
@@ -53,7 +53,7 @@ uv run python artifacts/llm_generation/adjusted_prefix_append/plot.py --db /tmp/
 - `prefix_vs_adjusted_append_sample.png` — 前缀 vs 调整后追加散点图（reservoir 子采样）。
 - `prefix_vs_adjusted_append_summary.csv` — 在**全部**对上计算的各 `provider`/`metric` 分位数（`count`、`median`、`p90`、`p95`、`p99`、`min`、`max`），涵盖 `raw_append`、`previous_output`、`signed_adjusted_append`、`adjusted_append`、`subtracted_pair` 以及 `clipped_after_subtract` 指标。
 
-该 PNG 是自包含的——它嵌入了本 README、汇总 CSV，以及绘图代码（`plot.py` + 共享的 `artifacts/utils/` 模块）。可用 `python artifacts/utils/png_sidecar.py extract <png>` 解包。
+该 PNG 是自包含的——它嵌入了本 README、汇总 CSV，以及绘图代码（`plot.py` + 共享的 `artifacts/utils/` 模块）。可用 `uv run python artifacts/utils/png_sidecar.py extract <png>` 解包。
 
 ## SyFI result analysis
 

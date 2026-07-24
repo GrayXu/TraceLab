@@ -3,8 +3,9 @@
 
 from __future__ import annotations
 
-import json
+import argparse
 import math
+import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
@@ -13,8 +14,9 @@ from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]  # experiment -> category -> artifacts -> repo root
-INPUT = REPO_ROOT / "trace" / "llm_round_trace.merged.all_users.jsonl"
 OUT_MD = Path(__file__).with_name("result_analysis.md")
+sys.path.insert(0, str(REPO_ROOT / "validators"))
+from trace_rows import DEFAULT_DB, iter_rounds  # noqa: E402
 
 INPUT_EVENT_TYPES = {"user_message", "tool_result"}
 MODEL_OUTPUT_EVENT_TYPES = {"reasoning", "text", "tool_call"}
@@ -180,6 +182,9 @@ def fmt_float(value: float) -> str:
 
 
 def main() -> int:
+    argument_parser = argparse.ArgumentParser(description=__doc__)
+    argument_parser.add_argument("--db", type=Path, default=DEFAULT_DB)
+    arguments = argument_parser.parse_args()
     active_by_session: dict[str, ActiveTurn] = {}
     stats: defaultdict[str, Stats] = defaultdict(Stats)
 
@@ -190,49 +195,43 @@ def main() -> int:
         stats[turn.provider].add_turn(turn)
         stats["all"].add_turn(turn)
 
-    with INPUT.open("r", encoding="utf-8", errors="replace") as fh:
-        for line in fh:
-            if not line.strip():
-                continue
-            row = json.loads(line)
-            if not isinstance(row, dict):
-                continue
-            provider = str(row.get("provider") or "<unknown-provider>")
-            session_id_value = row.get("session_id")
-            session_id = session_id_value if isinstance(session_id_value, str) else None
-            trigger_at = response_trigger_user_message_timestamp(row)
-            if trigger_at is not None and session_id is not None:
-                close_turn(session_id)
-                stats[provider].triggers += 1
-                stats["all"].triggers += 1
-                active_by_session[session_id] = ActiveTurn(provider=provider, start_at=trigger_at)
+    for _round_pk, row in iter_rounds(arguments.db, include_tools=True):
+        provider = str(row.get("provider") or "<unknown-provider>")
+        session_id_value = row.get("session_id")
+        session_id = session_id_value if isinstance(session_id_value, str) else None
+        trigger_at = response_trigger_user_message_timestamp(row)
+        if trigger_at is not None and session_id is not None:
+            close_turn(session_id)
+            stats[provider].triggers += 1
+            stats["all"].triggers += 1
+            active_by_session[session_id] = ActiveTurn(provider=provider, start_at=trigger_at)
 
-            turn = active_by_session.get(session_id) if session_id is not None else None
-            if turn is None:
-                continue
-            turn.rows += 1
-            generation_seconds = input_to_last_output_span_seconds(row)
-            if generation_seconds is not None:
-                turn.generation_rows += 1
-                turn.generation_seconds += generation_seconds
-            response_end = last_response_end_timestamp(row)
-            if response_end is not None and (turn.end_at is None or response_end > turn.end_at):
-                turn.end_at = response_end
+        turn = active_by_session.get(session_id) if session_id is not None else None
+        if turn is None:
+            continue
+        turn.rows += 1
+        generation_seconds = input_to_last_output_span_seconds(row)
+        if generation_seconds is not None:
+            turn.generation_rows += 1
+            turn.generation_seconds += generation_seconds
+        response_end = last_response_end_timestamp(row)
+        if response_end is not None and (turn.end_at is None or response_end > turn.end_at):
+            turn.end_at = response_end
 
-            tools = row.get("tools")
-            if isinstance(tools, list):
-                for tool in tools:
-                    if not isinstance(tool, dict):
-                        continue
-                    turn.tool_calls += 1
-                    effective = tool_effective_latency_seconds(tool)
-                    if effective is not None and effective > 0:
-                        turn.tool_effective_calls += 1
-                        turn.tool_effective_seconds += effective
-                    wall = tool_wall_latency_seconds(tool)
-                    if wall is not None and wall > 0:
-                        turn.tool_wall_calls += 1
-                        turn.tool_wall_seconds += wall
+        tools = row.get("tools")
+        if isinstance(tools, list):
+            for tool in tools:
+                if not isinstance(tool, dict):
+                    continue
+                turn.tool_calls += 1
+                effective = tool_effective_latency_seconds(tool)
+                if effective is not None and effective > 0:
+                    turn.tool_effective_calls += 1
+                    turn.tool_effective_seconds += effective
+                wall = tool_wall_latency_seconds(tool)
+                if wall is not None and wall > 0:
+                    turn.tool_wall_calls += 1
+                    turn.tool_wall_seconds += wall
 
     for session_id in list(active_by_session):
         close_turn(session_id)
@@ -241,7 +240,7 @@ def main() -> int:
     lines = [
         "# E2E Average Formula Check",
         "",
-        f"Input: `{INPUT}`",
+        f"Input: `{arguments.db}`",
         "",
         "Corrected user-turn window: latest `user_message` before first model output, through final model output before the next such user message.",
         "",

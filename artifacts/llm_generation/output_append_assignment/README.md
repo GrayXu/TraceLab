@@ -87,7 +87,7 @@ uv run python artifacts/llm_generation/output_append_assignment/plot.py
 uv run python artifacts/llm_generation/output_append_assignment/plot.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/llm_generation/output_append_assignment/plot.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/llm_generation/output_append_assignment/plot.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 ```
 
 Useful flags: `--max-gap-seconds` (pair gap ceiling, default 240), `--min-output-tokens` (one figure
@@ -109,7 +109,7 @@ Written to `-o` (default this folder), one set per `--min-output-tokens` thresho
 
 Each PNG is self-contained — it embeds this README, the summary CSVs, and the plotting code
 (`plot.py` + shared `artifacts/utils/` modules). Unpack with
-`python artifacts/utils/png_sidecar.py extract <png>`.
+`uv run python artifacts/utils/png_sidecar.py extract <png>`.
 
 ## SyFI result analysis
 

@@ -30,7 +30,7 @@ import duckdb
 
 EXP_UTILS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = EXP_UTILS_DIR.parents[1]  # artifacts/utils -> artifacts -> repo root
-DEFAULT_INPUT = REPO_ROOT / "trace" / "llm_round_trace.merged.all_users.jsonl"
+DEFAULT_DB = REPO_ROOT / "trace" / "syfi_coding_trace.duckdb"
 
 # Round-level scalar columns kept in ``rounds`` (everything except the two nested lists).
 _NESTED = ("tools", "timing_events")
@@ -440,12 +440,12 @@ def raw_connect(db_path, *, read_only: bool = True) -> "duckdb.DuckDBPyConnectio
 def add_db_args(parser: argparse.ArgumentParser, *, default_output_dir: Path | None = None) -> argparse.ArgumentParser:
     """Uniform I/O surface for every experiment: --db | -i/--input, plus -o/--output-dir."""
     parser.add_argument(
-        "-i", "--input", type=Path, default=DEFAULT_INPUT,
-        help="normalized JSONL trace (materialized to a temp DuckDB if --db is not given)",
+        "-i", "--input", type=Path, default=None,
+        help="optional normalized JSONL override; materialized to a temporary DuckDB",
     )
     parser.add_argument(
-        "--db", type=Path, default=None,
-        help="prebuilt DuckDB (from trace_db.materialize / run_all's build-db); skips materialize",
+        "--db", type=Path, default=DEFAULT_DB,
+        help=f"prebuilt DuckDB (default: {DEFAULT_DB})",
     )
     parser.add_argument(
         "-o", "--output-dir", type=Path, default=default_output_dir,
@@ -455,16 +455,16 @@ def add_db_args(parser: argparse.ArgumentParser, *, default_output_dir: Path | N
 
 
 def open_from_args(args) -> "duckdb.DuckDBPyConnection":
-    """Open the trace DB for an experiment: use --db if given, else materialize -i to a temp cache."""
+    """Open the explicit JSONL override, otherwise the requested/default trace DB."""
     out = getattr(args, "output_dir", None)
     if out is not None:
         Path(out).mkdir(parents=True, exist_ok=True)
 
-    db = getattr(args, "db", None)
-    if db is not None:
-        return connect(db, read_only=True)
+    input_path = getattr(args, "input", None)
+    if input_path is None:
+        return connect(Path(args.db), read_only=True)
 
-    trace = Path(args.input)
+    trace = Path(input_path)
     cache = _cache_db_path(trace)
     fresh = cache.exists() and cache.stat().st_mtime >= trace.stat().st_mtime
     if not fresh:

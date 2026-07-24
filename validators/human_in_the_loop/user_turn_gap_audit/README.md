@@ -6,8 +6,7 @@ time actually made of? (A deep drill-down into the residual from
 
 ## Input
 
-`trace/llm_round_trace.merged.all_users.jsonl` (edit `INPUT` in `analyze.py` to
-override).
+`trace/syfi_coding_trace.duckdb` by default; use `--db` for another materialized trace.
 
 ## Method / key assumptions
 
@@ -23,7 +22,7 @@ override).
 uv run python validators/human_in_the_loop/user_turn_gap_audit/analyze.py
 ```
 
-(For a fast check, temporarily point `INPUT` at `trace/sample.jsonl`.)
+(For a fast check, pass `--db` with a smaller materialized database.)
 
 ## Outputs (written here)
 

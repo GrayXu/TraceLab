@@ -40,7 +40,7 @@ uv run python artifacts/session/session_token_steps/plot.py
 uv run python artifacts/session/session_token_steps/plot.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/session/session_token_steps/plot.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/session/session_token_steps/plot.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 
 # pin exact sessions
 uv run python artifacts/session/session_token_steps/plot.py --session-id <session_id>
@@ -58,7 +58,7 @@ uv run python artifacts/session/session_token_steps/plot.py --session-id <sessio
 - `selected_session_token_steps.json` —— 精确的选择结果及每个窗口的指标。
 
 每张 PNG 都嵌入了本 README、候选 CSV 以及 `plot.py`。可用
-`python artifacts/utils/png_sidecar.py extract <png>` 解包。
+`uv run python artifacts/utils/png_sidecar.py extract <png>` 解包。
 
 ## SyFI result analysis
 

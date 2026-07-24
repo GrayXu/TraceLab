@@ -15,7 +15,7 @@ On-demand ``session_detail_json`` / ``round_raw_json`` ride the same RPC (added 
 
 Native parity / debugging:
 
-    python artifacts/web_analytics/analyze.py /tmp/trace.duckdb --tz -420
+    uv run python artifacts/web_analytics/analyze.py "$TMPDIR/trace.duckdb" --tz -420
 """
 
 from __future__ import annotations

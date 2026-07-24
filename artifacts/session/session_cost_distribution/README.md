@@ -27,7 +27,7 @@ table reports the **cost** as avg / p50 / p90 / p99 plus the category's share of
 ## Running it
 
 ```bash
-uv run python artifacts/session/session_cost_distribution/analyze.py -i trace/syfi_coding_trace.jsonl
+uv run python artifacts/session/session_cost_distribution/analyze.py --db trace/syfi_coding_trace.duckdb
 uv run python artifacts/session/session_cost_distribution/analyze.py            # default merged trace
 ```
 

@@ -32,7 +32,7 @@ p50 / p90 / p99，以及在有明确总量的 block 中给出该类别在总时�
 ## 运行方式
 
 ```bash
-uv run python artifacts/session/session_timing_distribution/analyze.py -i trace/syfi_coding_trace.jsonl
+uv run python artifacts/session/session_timing_distribution/analyze.py --db trace/syfi_coding_trace.duckdb
 uv run python artifacts/session/session_timing_distribution/analyze.py            # default merged trace
 ```
 

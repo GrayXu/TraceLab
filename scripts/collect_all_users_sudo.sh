@@ -6,12 +6,16 @@ usage() {
 Usage: scripts/collect_all_users_sudo.sh [options] [-- collect_llm_traces.py args...]
 
 Collect all readable users under /home with sudo, while keeping final outputs
-owned by the launching user. Existing normalized rounds are retained by default,
-so source-session cleanup cannot remove previously collected history.
+owned by the launching user. The default writes a fresh, dated host snapshot;
+merge it with the historical private archive on the aggregation host.
 
 Options:
   -o, --output PATH       Output JSONL path.
-                          Default: trace/llm_round_trace.all_users.jsonl
+                          Default: a dated file under trace/collections/.
+  --collection-id ID      UTC collection timestamp (YYYYMMDDTHHMMSSZ).
+                          Reuse one ID across every host in a collection.
+  --fresh-extract         Re-normalize currently readable raw sessions instead
+                          of seeding from an existing output.
   --home-root PATH        Home root to scan. Default: /home
   --sanitize              Also write PATH with .public.jsonl suffix.
   --quiet-progress        Suppress collector progress messages.
@@ -28,7 +32,10 @@ EOF
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "$script_dir/.." && pwd)"
 
-output="$repo_root/trace/llm_round_trace.all_users.jsonl"
+output=""
+output_explicit=0
+collection_id=""
+fresh_extract=0
 home_root="/home"
 sanitize=0
 summary=1
@@ -40,7 +47,16 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     -o|--output)
       output="$2"
+      output_explicit=1
       shift 2
+      ;;
+    --collection-id)
+      collection_id="$2"
+      shift 2
+      ;;
+    --fresh-extract)
+      fresh_extract=1
+      shift
       ;;
     --home-root)
       home_root="$2"
@@ -78,6 +94,20 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -z "$collection_id" ]]; then
+  collection_id="$(date -u +%Y%m%dT%H%M%SZ)"
+elif [[ ! "$collection_id" =~ ^[0-9]{8}T[0-9]{6}Z$ ]]; then
+  echo "invalid collection id: $collection_id" >&2
+  exit 2
+fi
+
+if [[ "$output_explicit" -eq 0 ]]; then
+  host_label="$(hostname -s)"
+  trace_name="llm_round_trace_v2.${collection_id}.${host_label}.all_users.jsonl"
+  output="$repo_root/trace/collections/$collection_id/hosts/$trace_name"
+  fresh_extract=1
+fi
+
 case "$output" in
   /*) ;;
   *) output="$repo_root/$output" ;;
@@ -103,7 +133,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [[ -s "$output" ]]; then
+if [[ "$fresh_extract" -eq 0 && -s "$output" ]]; then
   UV_CACHE_DIR="${UV_CACHE_DIR:-${temporary_directory}/uv-cache}" \
     uv run python "$script_dir/merge_round_traces.py" \
     "$output" \
@@ -121,6 +151,10 @@ collect_cmd=(
 
 if [[ "$quiet_progress" -eq 1 ]]; then
   collect_cmd+=(--quiet-host-progress)
+fi
+
+if [[ "$fresh_extract" -eq 1 ]]; then
+  collect_cmd+=(--fresh-extract)
 fi
 
 collect_cmd+=("${extra_args[@]}")
@@ -149,6 +183,7 @@ fi
 
 echo "wrote trace: $output"
 echo "wrote collection report: $report_output"
+echo "collection id: $collection_id"
 
 if [[ "$sanitize" -eq 1 ]]; then
   public_output="${output%.jsonl}.public.jsonl"

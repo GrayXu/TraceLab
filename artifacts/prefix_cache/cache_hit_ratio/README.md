@@ -65,7 +65,7 @@ uv run python artifacts/prefix_cache/cache_hit_ratio/analyze.py
 uv run python artifacts/prefix_cache/cache_hit_ratio/analyze.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/prefix_cache/cache_hit_ratio/analyze.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/prefix_cache/cache_hit_ratio/analyze.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 
 # CSV-only (skip figures)
 uv run python artifacts/prefix_cache/cache_hit_ratio/analyze.py --no-plots
@@ -87,7 +87,7 @@ uv run python artifacts/prefix_cache/cache_hit_ratio/analyze.py --no-plots
 
 The PNGs are self-contained — they embed this README, the CSVs, and the plotting code (`analyze.py`
 + shared `artifacts/utils/` modules). Unpack with
-`python artifacts/utils/png_sidecar.py extract <png>`.
+`uv run python artifacts/utils/png_sidecar.py extract <png>`.
 
 ## SyFI result analysis
 

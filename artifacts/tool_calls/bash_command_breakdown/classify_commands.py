@@ -21,13 +21,9 @@ sys.path.insert(0, str(REPO_ROOT / "scripts"))
 import trace_db  # noqa: E402
 from executable_facts import COMMAND_TOOL_NAMES, kind_of  # noqa: E402
 
-DEFAULT_INPUT = REPO_ROOT / "trace" / "llm_round_trace_v2.merged.all_users.public.jsonl"
-
-
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     trace_db.add_db_args(parser, default_output_dir=EXP_DIR)
-    parser.set_defaults(input=DEFAULT_INPUT)
     parser.add_argument(
         "--tools",
         default=",".join(sorted(COMMAND_TOOL_NAMES)),

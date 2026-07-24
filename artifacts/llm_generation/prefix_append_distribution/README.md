@@ -72,7 +72,7 @@ uv run python artifacts/llm_generation/prefix_append_distribution/plot.py
 uv run python artifacts/llm_generation/prefix_append_distribution/plot.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/llm_generation/prefix_append_distribution/plot.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/llm_generation/prefix_append_distribution/plot.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 ```
 
 Useful flags: `--group-by` (`provider` / `model` / `provider_model`), `--max-groups` (max plotted
@@ -88,7 +88,7 @@ groups, default 8), `--pair-sample-size` (scatter subsample, default 80000).
 
 The PNGs are self-contained — they embed this README, the CSVs, and the plotting code
 (`plot.py` + shared `artifacts/utils/` modules). Unpack with
-`python artifacts/utils/png_sidecar.py extract <png>`.
+`uv run python artifacts/utils/png_sidecar.py extract <png>`.
 
 ## SyFI result analysis
 

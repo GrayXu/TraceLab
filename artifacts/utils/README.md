@@ -33,9 +33,9 @@ from cdf import plot_count_cdf_by_provider     # generic, shared by several expe
 # from accumulators import ReservoirSampler, numeric_sample
 ```
 
-By convention each experiment defaults its input to
-`trace/llm_round_trace.merged.all_users.jsonl` and its output directory to its own
-folder (`Path(__file__).resolve().parent`).
+By convention each experiment defaults to `trace/syfi_coding_trace.duckdb` and writes to its own
+folder (`Path(__file__).resolve().parent`). JSONL is only a compatibility override for the
+materialization boundary.
 
 ## Modules
 

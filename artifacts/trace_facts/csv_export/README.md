@@ -58,24 +58,24 @@ The data layer lives in `artifacts/utils/trace_db.py` (see `artifacts/utils/DB_S
 ## Running it
 
 ```bash
-# materialize a trace to a temp DuckDB and write the CSV
+# released DuckDB
 uv run python artifacts/trace_facts/csv_export/convert.py \
-  -i trace/llm_round_trace.public.jsonl \
+  --db trace/syfi_coding_trace.duckdb \
   -o artifacts/trace_facts/csv_export/coding_trace.csv
 
-# a prebuilt DB (skips materialize)
+# another prebuilt DB
 uv run python artifacts/trace_facts/csv_export/convert.py \
-  --db /tmp/trace.duckdb \
-  -o artifacts/trace_facts/csv_export/coding_trace.csv
+  --db "$TMPDIR/trace.duckdb" \
+  -o "$TMPDIR/coding_trace.csv"
 
-# claude-only, evenly spaced arrivals, a fixed seed
+# explicit JSONL compatibility path: claude-only, evenly spaced arrivals, fixed seed
 uv run python artifacts/trace_facts/csv_export/convert.py \
-  -i trace/sample.jsonl -o /tmp/coding_trace.csv \
+  -i trace/sample.jsonl -o "$TMPDIR/coding_trace.csv" \
   --provider claude --arrival-pattern constant --arrival-rate 2 --seed 7
 ```
 
-`-o` is required (this is a transform, not a plot). `run_all.py` drives this via its `io` style:
-`-i <jsonl> -o coding_trace.csv`.
+`-o` is required (this is a transform, not a plot). `run_all.py` passes
+`--db <database> -o coding_trace.csv`.
 
 ## Outputs
 

@@ -53,15 +53,15 @@ uv run python artifacts/<category>/<experiment>/<script>.py --db trace/syfi_codi
 ```
 
 Plotting experiments embed their README, source CSV data, and plotting code into every
-PNG as the final step; read them back with `python artifacts/utils/png_sidecar.py`.
+PNG as the final step; read them back with `uv run python artifacts/utils/png_sidecar.py`.
 
 ### Running everything
 
 `artifacts/run_all.py` is a dispatcher that runs every experiment (or a subset),
 defaulting to 16 at a time and to the released database at
-`trace/syfi_coding_trace.duckdb`. It knows each experiment's invocation style (`-i`,
-`--input`, a module-level `INPUT` default, `csv_export`'s `-i`/`-o`, `overview_summary`'s
-stdout→`summary.json`), derives the local timing CSV before timing experiments, and runs
+`trace/syfi_coding_trace.duckdb`. It knows each experiment's invocation style, passes `--db`
+to DB-backed scripts, handles `csv_export`'s output and `overview_summary`'s
+stdout→`summary.json`, derives the local timing CSV before timing experiments, and runs
 `build_summary` only after `timing_feature_ambiguity` succeeds. Each experiment's console
 output is captured to a per-experiment log under the `--log-dir`.
 
@@ -73,8 +73,8 @@ uv run python artifacts/run_all.py --only tool_calls
 uv run python artifacts/run_all.py --only prefix_cache/cache_hit_ratio
 uv run python artifacts/run_all.py --db trace/syfi_coding_trace.duckdb
 uv run python artifacts/run_all.py \
-  --build-db --input trace/llm_round_trace.public.jsonl \
-  --db trace/llm_round_trace.public.duckdb
+  --build-db --input trace/syfi_coding_trace.jsonl.gz \
+  --db "$TMPDIR/syfi_coding_trace.duckdb"
 ```
 
 Timing experiments (`append_vs_prefix_latency`, `timing_feature_ambiguity`, `timing_fit`)

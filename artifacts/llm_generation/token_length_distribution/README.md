@@ -36,7 +36,7 @@ uv run python artifacts/llm_generation/token_length_distribution/analyze.py
 uv run python artifacts/llm_generation/token_length_distribution/analyze.py -i trace/sample.jsonl
 
 # a prebuilt DB, into a chosen dir
-uv run python artifacts/llm_generation/token_length_distribution/analyze.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/llm_generation/token_length_distribution/analyze.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 ```
 
 ## Outputs

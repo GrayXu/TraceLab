@@ -59,7 +59,7 @@ uv run python artifacts/tool_calls/tool_time_by_kind/plot.py
 uv run python artifacts/tool_calls/tool_time_by_kind/plot.py -i trace/sample.jsonl
 
 # a prebuilt DB (run_all.py's build-db step passes this), into a chosen dir
-uv run python artifacts/tool_calls/tool_time_by_kind/plot.py --db /tmp/trace.duckdb -o /tmp/out
+uv run python artifacts/tool_calls/tool_time_by_kind/plot.py --db "$TMPDIR/trace.duckdb" -o "$TMPDIR/out"
 ```
 
 Useful flags: `--top-tools` (max bars per panel, default 30), `--min-tool-calls-for-plot`
@@ -75,7 +75,7 @@ Written to `-o` (default this folder):
   `avg_latency_ms`.
 
 The PNG is self-contained — it embeds this README, the CSV, and the plotting code. Unpack with
-`python artifacts/utils/png_sidecar.py extract <png>`.
+`uv run python artifacts/utils/png_sidecar.py extract <png>`.
 
 ## SyFI result analysis
 

@@ -78,21 +78,29 @@ Turn your local Claude/Codex history into a shareable, sanitized trace and regen
 every figure:
 
 ```bash
+collection_id="$(date -u +%Y%m%dT%H%M%SZ)"
+collection_directory="trace/collections/${collection_id}"
+
 # 1. Collect a private normalized trace (existing history is retained)
 uv run python scripts/collect_llm_traces.py \
-  --extract-rounds trace/llm_round_trace.jsonl
+  --extract-rounds "${collection_directory}/merged.private.jsonl"
 
 # 2. Sanitize it (pseudonymize ids, strip local paths & tool inputs)
 uv run python scripts/sanitize_round_trace.py \
-  trace/llm_round_trace.jsonl -o trace/llm_round_trace.public.jsonl
+  "${collection_directory}/merged.private.jsonl" \
+  -o "${collection_directory}/merged.public.jsonl"
 
-# 3. Regenerate all analysis artifacts
+# 3. Materialize the sanitized trace once
+uv run python artifacts/utils/trace_db.py \
+  "${collection_directory}/merged.public.jsonl" \
+  "${collection_directory}/merged.public.duckdb"
+
+# 4. Regenerate every analysis from DuckDB
 uv run python artifacts/run_all.py \
-  --build-db --input trace/llm_round_trace.public.jsonl \
-  --db trace/llm_round_trace.public.duckdb
+  --db "${collection_directory}/merged.public.duckdb"
 
-# 4. Run validation / audit checks
-uv run python validators/run_all.py --input trace/llm_round_trace.public.jsonl
+# 5. Run validator analyses from the same DuckDB
+uv run python validators/run_all.py --db "${collection_directory}/merged.public.duckdb"
 ```
 
 > Prefer a UI? Drag a trace export into the [web app](#-web-app) and get the same
@@ -155,11 +163,13 @@ curl -L --fail -o trace/syfi_coding_trace.duckdb \
   https://github.com/uw-syfi/TraceLab/releases/latest/download/syfi_coding_trace.duckdb
 ```
 
-Decompress when a JSONL input is needed:
+Use DuckDB for analysis. If another tool specifically requires JSONL, decompress into `$TMPDIR`
+instead of creating a loose file at the `trace/` root:
 
 ```bash
-gzip -dk trace/syfi_coding_trace.jsonl.gz
-uv run python artifacts/trace_facts/overview_summary/analyze.py -i trace/syfi_coding_trace.jsonl
+uv run python artifacts/trace_facts/overview_summary/analyze.py \
+  --db trace/syfi_coding_trace.duckdb
+gzip -cd trace/syfi_coding_trace.jsonl.gz > "$TMPDIR/syfi_coding_trace.jsonl"
 ```
 
 </details>
@@ -213,11 +223,14 @@ uv run python scripts/collect_llm_traces.py --extract-rounds
 uv run python scripts/collect_llm_traces.py --all-user --extract-rounds
 
 # Sudo-backed all-user collection that keeps outputs owned by the launching user
-scripts/collect_all_users_sudo.sh --sanitize
+collection_id="$(date -u +%Y%m%dT%H%M%SZ)"
+scripts/collect_all_users_sudo.sh \
+  --collection-id "$collection_id" \
+  --fresh-extract
 ```
 
 For a multi-host corpus refresh, write each host's fresh extraction into one shared UTC collection
-ID under `trace/collections/YYYYMMDDTHHMMSSZ/`. Then merge the prior private aggregate first and
+ID under `trace/collections/YYYYMMDDTHHMMSSZ/`. Then merge the historical private archive first and
 the fresh host snapshots afterward with `scripts/merge_round_traces.py`. The newest copy of
 `(provider, session_id, round_id)` wins, so rounds are re-normalized without losing history whose
 original local session files have been deleted.
@@ -288,8 +301,8 @@ data, and the plotting code as compressed PNG text chunks (CSVs are still writte
 normally). Inspect or unpack any figure with the helper:
 
 ```bash
-python artifacts/utils/png_sidecar.py list    <figure>.png
-python artifacts/utils/png_sidecar.py extract <figure>.png -o ./unpacked
+uv run python artifacts/utils/png_sidecar.py list    <figure>.png
+uv run python artifacts/utils/png_sidecar.py extract <figure>.png -o "$TMPDIR/unpacked"
 ```
 </details>
 
@@ -297,14 +310,14 @@ python artifacts/utils/png_sidecar.py extract <figure>.png -o ./unpacked
 <summary><b>Timing-fit family</b> — local derived timing CSV</summary>
 
 The timing-fit family owns its derived timing-segment CSV locally. `artifacts/run_all.py`
-builds `artifacts/llm_generation/timing_fit/timing_fit_trace.csv` from the selected JSONL
+builds `artifacts/llm_generation/timing_fit/timing_fit_trace.csv` from the selected DuckDB
 trace before running timing analyses. Use `--timing-input` only when you intentionally want
-to consume an existing external timing CSV instead of deriving one from `--input`. To build
+to consume an existing external timing CSV instead of deriving one from `--db`. To build
 the local timing CSV directly:
 
 ```bash
 uv run python artifacts/llm_generation/timing_fit/collect_timing_fit_trace.py \
-  -i trace/llm_round_trace.jsonl
+  --db trace/syfi_coding_trace.duckdb
 ```
 </details>
 
@@ -319,7 +332,7 @@ uv run python validators/run_all.py
 uv run python validators/run_all.py --list
 uv run python validators/run_all.py --only human_in_the_loop
 uv run python validators/run_all.py --only trace_facts/tool_duplicate_audit
-uv run python validators/run_all.py --input trace/llm_round_trace.public.jsonl
+uv run python validators/run_all.py --db trace/syfi_coding_trace.duckdb
 ```
 
 ---
