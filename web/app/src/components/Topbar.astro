@@ -6,6 +6,10 @@ import { localizedHome, localeFromUrl, useTranslations } from '../i18n';
 const locale = localeFromUrl(Astro.url);
 const t = useTranslations(Astro.url).topbar;
 const home = localizedHome(locale);
+const announcementHref =
+  locale === 'zh'
+    ? '/zh/exp/tool_calls/bash_command_breakdown/'
+    : '/exp/tool_calls/bash_command_breakdown/';
 ---
 
 <header class="topbar" data-home={home}>
@@ -34,6 +38,11 @@ const home = localizedHome(locale);
         <path d="M20 14.5A8 8 0 1 1 9.5 4a6.3 6.3 0 0 0 10.5 10.5z"></path>
       </svg>
     </button>
+  </div>
+  <div class="release-announcement" role="status">
+    <span aria-hidden="true">📣</span>
+    <span>{t.announcement}</span>
+    <a href={announcementHref}>{t.announcementLink} <span aria-hidden="true">→</span></a>
   </div>
 </header>
 

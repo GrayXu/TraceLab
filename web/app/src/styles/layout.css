@@ -29,6 +29,26 @@
     width: min(1560px, 100% - var(--edge)); margin-inline: auto; padding: 14px 0;
     display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
   }
+  .release-announcement {
+    width: min(1560px, 100% - var(--edge));
+    margin-inline: auto;
+    padding: 9px 0 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    color: var(--muted);
+    font-size: var(--fs-2xs);
+    line-height: 1.35;
+    border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  }
+  .release-announcement a {
+    color: var(--terra);
+    font-weight: 650;
+    white-space: nowrap;
+  }
+  .release-announcement a:hover { color: var(--ink); }
+  .release-announcement a:focus-visible { outline: 2px solid var(--terra); outline-offset: 3px; }
   .brand { display: flex; align-items: center; gap: 12px; margin-right: auto; }
   .brand .mark {
     width: 82px; height: 40px; flex: none;

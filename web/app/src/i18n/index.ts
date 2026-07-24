@@ -39,6 +39,9 @@ export const uiCopy = {
       twitter: 'Follow',
       bibtex: 'BibTeX',
       bibtexCopied: 'Copied!',
+      announcement:
+        'SyFI Coding Trace v2 is live — over 100B input tokens, now with Bash command breakdowns.',
+      announcementLink: 'Explore the breakdown',
     },
     assistant: {
       launcher: 'Ask the data',
@@ -639,6 +642,9 @@ export const uiCopy = {
       twitter: '关注',
       bibtex: 'BibTeX',
       bibtexCopied: '已复制！',
+      announcement:
+        'SyFI Coding Trace v2 已发布：超过 100B input tokens，并新增 Bash command breakdown。',
+      announcementLink: '查看分析',
     },
     assistant: {
       launcher: '询问数据',
