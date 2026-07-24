@@ -17,11 +17,12 @@ table reports the **cost** as avg / p50 / p90 / p99 plus the category's share of
 - **Cost** uses the single-source price table `artifacts/utils/pricing.json` via
   `web_analytics/pricing.py` (`price_for` → per-model exact/family resolve; `round_cost` → append
   at input/cache-write rates, prefix at cache-read rate, output at output rate — the same billing
-  the web dashboard uses). Rounds whose model has no price are *unpriced* and excluded; 99.1% of
-  rounds are priced (the rest are `codex:codex-auto-review` / null-model rows). Coverage is printed.
+  the web dashboard uses). Rounds whose model has no price are *unpriced* and excluded; 98.52% of
+  rounds are priced. The remaining 8,215 rounds are `codex-auto-review`, `glm-5.2`, or
+  `minimax-m2.1`; model-less Codex replay artifacts have been removed. Coverage is printed.
 - **Request** — one user turn, via the same turn state machine as
-  `human_in_the_loop/user_turn_decomposition` (39,202 turns, matching `user_turn_response_time`
-  and `session_internal_counts`). **Step** — one LLM round. **Session** — one `session_id`.
+  `human_in_the_loop/user_turn_decomposition`. **Step** — one LLM round. **Session** — one
+  `session_id`.
 
 ## Running it
 
@@ -39,12 +40,12 @@ uv run python artifacts/session/session_cost_distribution/analyze.py            
 - stdout — merged + per-provider (Claude / Codex) token and cost percentiles, plus the
   append / prefix / output cost composition.
 
-## Headline numbers (public trace, list prices as of 2026-06)
+## Headline numbers (public trace, list prices as of 2026-07)
 
-- **Cost composition: prefix/cached 59.5%, append/new-input 29.2%, output 11.2%.** Cached input
+- **Cost composition: prefix/cached 56.8%, append/new-input 32.2%, output 11.0%.** Cached input
   dominates spend despite the ~10× cache-read discount, purely on volume.
-- Avg cost: **$9.70 / session**, **$1.01 / request**, **$0.11 / step**; medians are far lower
-  ($0.61 / $0.33 / $0.074) with a heavy session tail (p99 = $178).
+- Avg cost: **$11.6 / session**, **$1.12 / request**, **$0.14 / step**; medians are far lower
+  ($0.72 / $0.37 / $0.08) with a heavy session tail (p99 = $209).
 
 No figures.
 
@@ -53,10 +54,10 @@ No figures.
 ### session_cost_distribution.md
 
 For a coding agent the bill is dominated by re-reading context, not by generation (the paper's
-`tab:cost_distribution`). Cached **prefix tokens are 59.5%** of total spend even though they are
+`tab:cost_distribution`). Cached **prefix tokens are 56.8%** of total spend even though they are
 billed at roughly a tenth of the fresh-input rate — pure volume, since the accumulating context is
-replayed on every step — against **29.2%** for append/new-input and only **11.2%** for output. Output
+replayed on every step — against **32.2%** for append/new-input and only **11.0%** for output. Output
 is cheap in aggregate despite its high per-token price because each step emits so few tokens. The
-absolute costs are modest at the median ($0.61/session, $0.33/request, $0.07/step) but carry a heavy
-tail: the average session is $9.70 and p99 reaches **$178**, a few very long sessions driving most of
+absolute costs are modest at the median ($0.72/session, $0.37/request, $0.08/step) but carry a heavy
+tail: the average session is $11.6 and p99 reaches **$209**, a few very long sessions driving most of
 the spend. This inverts the usual intuition that generation is the expensive part.

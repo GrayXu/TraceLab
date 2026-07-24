@@ -18,8 +18,8 @@ Definitions reuse the canonical experiments so the numbers reconcile:
 * **Cost** is computed with the single-source price table ``artifacts/utils/pricing.json`` via
   ``web_analytics/pricing.py`` (``price_for`` -> per-model exact/family resolve; ``round_cost``
   -> append at input/cache-write rates, prefix at cache-read rate, output at output rate). Rounds
-  whose model has no price are *unpriced* and excluded (99.1% of rounds are priced); coverage is
-  reported.
+  whose model has no price are *unpriced* and excluded; coverage is reported rather than
+  hard-coded.
 * A **request** is one user turn -- the same turn state machine as
   ``human_in_the_loop/user_turn_decomposition`` (identical to ``user_turn_response_time`` and
   ``session_internal_counts``). A **step** is one LLM round; a **session** is one ``session_id``.
