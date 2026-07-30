@@ -129,6 +129,20 @@ cargo run --release --manifest-path replay/Cargo.toml --bin session_runner -- \
   --log-path /tmp/session_runner_chat.jsonl
 ```
 
+## Run Against DashScope Native Generation
+
+Use `--backend bailian` with the exact native generation endpoint. For a full
+single-session-at-a-time replay, `scripts/replay_all_bailian_serial.sh` builds the
+canonical workload and skips cache preflight and tool waits. It is dry-run by
+default; `--send` explicitly enables external requests.
+
+```bash
+export BAILIAN_TEST_TOKENIZER=/path/to/tokenizer.json
+export BAILIAN_TEST_TEXT_FILE=/path/to/large-corpus.txt
+scripts/replay_all_bailian_serial.sh
+scripts/replay_all_bailian_serial.sh --send
+```
+
 ## Prefix-Cache Accounting
 
 The JSONL log includes per-round planned-vs-server cache fields:
