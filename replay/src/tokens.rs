@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufReader, Read};
 use std::sync::Arc;
 use tokenizers::Tokenizer;
 
@@ -297,16 +297,24 @@ pub(crate) fn build_token_pool(
 ) -> Result<Vec<u32>> {
     let file = File::open(text_file)
         .with_context(|| format!("failed to open text corpus: {text_file}"))?;
-    let reader = BufReader::new(file);
+    let mut reader = BufReader::new(file);
     let mut pool = Vec::with_capacity(limit);
 
-    for line in reader.lines() {
-        let line = line?;
-        if line.trim().is_empty() {
+    let mut bytes = [0_u8; 64 * 1024];
+    loop {
+        let bytes_read = reader.read(&mut bytes)?;
+        if bytes_read == 0 {
+            break;
+        }
+        // A corpus may have arbitrarily long lines (for example enwik9). Chunking keeps
+        // pool construction bounded; any token split at a chunk edge only affects synthetic
+        // filler content, not the trace-derived request lengths.
+        let chunk = String::from_utf8_lossy(&bytes[..bytes_read]);
+        if chunk.trim().is_empty() {
             continue;
         }
         let encoding = tokenizer
-            .encode(line, false)
+            .encode(chunk.as_ref(), false)
             .map_err(|err| anyhow!("tokenizer encode failed: {err}"))?;
         pool.extend(encoding.get_ids());
         if pool.len() >= limit {
