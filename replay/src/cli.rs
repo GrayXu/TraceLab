@@ -65,11 +65,19 @@ pub(crate) struct Args {
     #[arg(long, value_name = "JSON")]
     pub(crate) extra_body_json: Option<String>,
 
+    /// Skip the two-request cache-reporting probe.
+    #[arg(long, default_value_t = false)]
+    pub(crate) skip_cache_preflight: bool,
+
     #[arg(long, default_value_t = 0.0)]
     pub(crate) temperature: f64,
 
     #[arg(long)]
     pub(crate) max_sessions: Option<usize>,
+
+    /// Shuffle session submission deterministically; arrival times still apply.
+    #[arg(long, value_name = "SEED")]
+    pub(crate) session_shuffle_seed: Option<u64>,
 
     #[arg(long, default_value = "session_runner_output.jsonl")]
     pub(crate) log_path: String,
@@ -86,6 +94,10 @@ pub(crate) struct Args {
     /// Stop a session after the first failed round.
     #[arg(long, default_value_t = true)]
     pub(crate) stop_session_on_error: bool,
+
+    /// Do not sleep for trace-observed tool waits between rounds.
+    #[arg(long, default_value_t = false)]
+    pub(crate) ignore_tool_waits: bool,
 
     /// Maximum number of sessions allowed to actively run at once.
     #[arg(long)]

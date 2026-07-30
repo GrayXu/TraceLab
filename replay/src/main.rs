@@ -10,6 +10,7 @@ mod workload;
 
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
+use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::{mpsc, Semaphore};
@@ -88,26 +89,33 @@ async fn main() -> Result<()> {
     let total_steps = workload_summary.total_steps();
     let client = Arc::new(GenerationClient::new(&args, tokenizer)?);
 
-    // Fail fast if the server won't report prefix-cache hits: otherwise every measured hit
-    // rate would silently read as zero. Dry-run returns earlier and never reaches here.
-    // Probe the TAIL of the pool: session 0 seeds at offset 0, so a head probe would warm its
-    // first round's prefix and fabricate a cache hit there.
-    let requested_probe_len = args
-        .cache_probe_tokens
-        .unwrap_or_else(|| args.backend.default_cache_probe_tokens());
-    if token_pool.len() < requested_probe_len
-        && (args.cache_probe_tokens.is_some() || args.backend != BackendKind::Openai)
-    {
-        return Err(anyhow!(
-            "cache preflight requires {requested_probe_len} tokens, but the token pool contains only {}",
-            token_pool.len()
-        ));
+    if !args.skip_cache_preflight {
+        // Fail fast if the server won't report prefix-cache hits: otherwise every measured hit
+        // rate would silently read as zero. Dry-run returns earlier and never reaches here.
+        // Probe the TAIL of the pool: session 0 seeds at offset 0, so a head probe would warm its
+        // first round's prefix and fabricate a cache hit there.
+        let requested_probe_len = args
+            .cache_probe_tokens
+            .unwrap_or_else(|| args.backend.default_cache_probe_tokens());
+        if token_pool.len() < requested_probe_len
+            && (args.cache_probe_tokens.is_some() || args.backend != BackendKind::Openai)
+        {
+            return Err(anyhow!(
+                "cache preflight requires {requested_probe_len} tokens, but the token pool contains only {}",
+                token_pool.len()
+            ));
+        }
+        let probe_len = token_pool.len().min(requested_probe_len);
+        client
+            .preflight_cache_check(&token_pool[token_pool.len() - probe_len..])
+            .await
+            .context("prefix-cache preflight failed")?;
     }
-    let probe_len = token_pool.len().min(requested_probe_len);
-    client
-        .preflight_cache_check(&token_pool[token_pool.len() - probe_len..])
-        .await
-        .context("prefix-cache preflight failed")?;
+
+    let mut sessions: Vec<_> = sessions.into_iter().enumerate().collect();
+    if let Some(seed) = args.session_shuffle_seed {
+        sessions.shuffle(&mut StdRng::seed_from_u64(seed));
+    }
 
     let state = Arc::new(AppState {
         args: args.clone(),
@@ -130,7 +138,7 @@ async fn main() -> Result<()> {
     ));
 
     let mut join_set = tokio::task::JoinSet::new();
-    for (session_ordinal, (session_id, steps)) in sessions.into_iter().enumerate() {
+    for (session_ordinal, (session_id, steps)) in sessions {
         let state_ref = state.clone();
         let log_tx_ref = log_tx.clone();
         join_set.spawn(async move {

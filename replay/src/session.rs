@@ -138,7 +138,7 @@ pub(crate) async fn run_session(
         // region of the next prefix matches what the server cached and stays cache-hittable.
         prompt_builder.commit_output(prompt, output_ids, output_text);
 
-        if step.tool_wait_after_ms > 0.0 {
+        if !state.args.ignore_tool_waits && step.tool_wait_after_ms > 0.0 {
             tokio::time::sleep(Duration::from_secs_f64(step.tool_wait_after_ms / 1000.0)).await;
         }
     }

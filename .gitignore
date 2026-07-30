@@ -9,6 +9,7 @@ trace/*.jsonl.gz
 trace/*.json
 trace/*.csv
 trace/*.duckdb
+trace/*.log
 /trace/collections/
 
 # artifacts/: track experiment code (*.py) and README.md only; everything else
