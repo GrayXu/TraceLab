@@ -77,7 +77,7 @@ pub(crate) async fn run_session(
     for step in steps {
         let prompt = match state.args.backend {
             BackendKind::Openai => prompt_builder.build_prompt(&step),
-            BackendKind::Chat => {
+            BackendKind::Chat | BackendKind::Bailian => {
                 tokio::task::block_in_place(|| prompt_builder.build_prompt(&step))
             }
         };

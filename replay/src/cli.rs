@@ -7,13 +7,15 @@ pub(crate) enum BackendKind {
     Openai,
     /// OpenAI-compatible `/chat/completions` with cumulative role-based messages.
     Chat,
+    /// DashScope native text-generation endpoint with role-based messages.
+    Bailian,
 }
 
 impl BackendKind {
     pub(crate) fn default_cache_probe_tokens(self) -> usize {
         match self {
             Self::Openai => 512,
-            Self::Chat => 4096,
+            Self::Chat | Self::Bailian => 4096,
         }
     }
 }
@@ -37,7 +39,7 @@ pub(crate) struct Args {
     #[arg(long)]
     pub(crate) tokenizer: String,
 
-    /// OpenAI-compatible base URL, normally http://host:port/v1.
+    /// Base URL. OpenAI backends normally use http://host:port/v1.
     #[arg(long, default_value = "http://127.0.0.1:8000/v1")]
     pub(crate) base_url: String,
 

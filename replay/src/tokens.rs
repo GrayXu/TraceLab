@@ -75,7 +75,9 @@ impl SessionPromptBuilder {
     ) -> Self {
         match backend {
             BackendKind::Openai => Self::Completion(PromptBuilder::new(token_provider)),
-            BackendKind::Chat => Self::Chat(ChatPromptBuilder::new(token_provider, tokenizer)),
+            BackendKind::Chat | BackendKind::Bailian => {
+                Self::Chat(ChatPromptBuilder::new(token_provider, tokenizer))
+            }
         }
     }
 

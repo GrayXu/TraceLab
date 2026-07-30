@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use bytes::BytesMut;
 use futures::StreamExt;
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue, AUTHORIZATION};
 use serde_json::{Map, Value};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
@@ -77,6 +77,10 @@ pub(crate) struct StreamEvent {
 pub(crate) trait Backend: Send + Sync {
     /// Path appended to `--base-url` to form the request endpoint.
     fn endpoint_suffix(&self) -> &str;
+    /// Static request headers required by this wire protocol.
+    fn request_headers(&self) -> &'static [(&'static str, &'static str)] {
+        &[]
+    }
     /// Shape one generation request into this backend's request body.
     fn build_payload(&self, req: &GenRequest) -> Value;
     /// Normalize one response JSON object (a stream chunk or a full body).
@@ -88,6 +92,7 @@ pub(crate) fn build_backend(kind: BackendKind) -> Box<dyn Backend> {
     match kind {
         BackendKind::Openai => Box::new(OpenAiCompletionsBackend),
         BackendKind::Chat => Box::new(OpenAiChatCompletionsBackend),
+        BackendKind::Bailian => Box::new(BailianGenerationBackend),
     }
 }
 
@@ -251,6 +256,76 @@ impl Backend for OpenAiChatCompletionsBackend {
     }
 }
 
+/// DashScope native `/api/v1/services/aigc/text-generation/generation` protocol.
+pub(crate) struct BailianGenerationBackend;
+
+impl Backend for BailianGenerationBackend {
+    fn endpoint_suffix(&self) -> &str {
+        "/api/v1/services/aigc/text-generation/generation"
+    }
+
+    fn request_headers(&self) -> &'static [(&'static str, &'static str)] {
+        &[("X-DashScope-SSE", "enable")]
+    }
+
+    fn build_payload(&self, req: &GenRequest) -> Value {
+        let GenInput::ChatMessages(messages) = req.input else {
+            unreachable!("Bailian generation backend requires chat messages")
+        };
+        let messages: Vec<Value> = messages
+            .iter()
+            .map(|message| {
+                serde_json::json!({
+                    "role": message.role.as_str(),
+                    "content": message.content.as_ref(),
+                })
+            })
+            .collect();
+        serde_json::json!({
+            "model": req.model,
+            "input": {"messages": messages},
+            "parameters": {
+                "result_format": "message",
+                "incremental_output": req.stream,
+                "max_tokens": req.max_tokens,
+                "temperature": req.temperature,
+                "enable_thinking": false,
+            },
+        })
+    }
+
+    fn parse_event(&self, value: &Value) -> StreamEvent {
+        let output = value.get("output");
+        let choice = output
+            .and_then(|output| output.get("choices"))
+            .and_then(Value::as_array)
+            .and_then(|choices| choices.first());
+        let text_delta = choice
+            .and_then(|choice| {
+                choice
+                    .get("message")
+                    .and_then(|message| message.get("content"))
+                    .or_else(|| choice.get("text"))
+            })
+            .or_else(|| output.and_then(|output| output.get("text")))
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let finish_reason = choice
+            .and_then(|choice| choice.get("finish_reason"))
+            .or_else(|| output.and_then(|output| output.get("finish_reason")))
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let token_delta_observed = text_delta.as_deref().is_some_and(|text| !text.is_empty());
+        StreamEvent {
+            text_delta,
+            token_delta_observed,
+            token_ids: None,
+            finish_reason,
+            usage: value.get("usage").map(parse_bailian_usage),
+        }
+    }
+}
+
 /// Result of replaying one round: the log record plus the model's output token ids. The caller
 /// carries the output ids forward as the next round's context so the previous-output region of
 /// the next prefix matches what the server cached and stays prefix-cache-hittable.
@@ -347,6 +422,7 @@ impl GenerationClient {
             .client
             .post(&self.endpoint)
             .header("x-request-id", &request_id)
+            .headers(headers_from_pairs(self.backend.request_headers()))
             .json(&payload)
             .send()
             .await;
@@ -370,10 +446,10 @@ impl GenerationClient {
                                 let line_bytes = buffer.split_to(idx + 1);
                                 let line = String::from_utf8_lossy(&line_bytes);
                                 let line = line.trim();
-                                if !line.starts_with("data: ") {
+                                if !line.starts_with("data:") {
                                     continue;
                                 }
-                                let data = line.trim_start_matches("data: ").trim();
+                                let data = line.trim_start_matches("data:").trim();
                                 if data == "[DONE]" {
                                     done = true;
                                     break;
@@ -521,7 +597,7 @@ impl GenerationClient {
         let probe_messages;
         let input = match self.backend_kind {
             BackendKind::Openai => GenInput::PromptIds(probe_ids),
-            BackendKind::Chat => {
+            BackendKind::Chat | BackendKind::Bailian => {
                 probe_text = self
                     .tokenizer
                     .decode(probe_ids, false)
@@ -569,6 +645,7 @@ impl GenerationClient {
         let response = self
             .client
             .post(&self.endpoint)
+            .headers(headers_from_pairs(self.backend.request_headers()))
             .json(&payload)
             .send()
             .await
@@ -675,10 +752,33 @@ fn build_auth_headers(api_key_env: Option<&str>) -> Result<HeaderMap> {
     Ok(headers)
 }
 
+fn headers_from_pairs(pairs: &[(&str, &str)]) -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    for (name, value) in pairs {
+        let Ok(name) = name.parse::<HeaderName>() else {
+            continue;
+        };
+        let Ok(value) = HeaderValue::from_str(value) else {
+            continue;
+        };
+        headers.insert(name, value);
+    }
+    headers
+}
+
 fn parse_usage(usage: &Value) -> Usage {
     Usage {
         prompt_tokens: usage_usize(usage, "prompt_tokens"),
         completion_tokens: usage_usize(usage, "completion_tokens"),
+        total_tokens: usage_usize(usage, "total_tokens"),
+        cached_prompt_tokens: usage_cached_prompt_tokens(usage),
+    }
+}
+
+fn parse_bailian_usage(usage: &Value) -> Usage {
+    Usage {
+        prompt_tokens: usage_usize_any(usage, &["input_tokens", "prompt_tokens"]),
+        completion_tokens: usage_usize_any(usage, &["output_tokens", "completion_tokens"]),
         total_tokens: usage_usize(usage, "total_tokens"),
         cached_prompt_tokens: usage_cached_prompt_tokens(usage),
     }
@@ -689,6 +789,10 @@ fn usage_usize(usage: &Value, key: &str) -> Option<usize> {
         .get(key)?
         .as_u64()
         .and_then(|value| value.try_into().ok())
+}
+
+fn usage_usize_any(usage: &Value, keys: &[&str]) -> Option<usize> {
+    keys.iter().find_map(|key| usage_usize(usage, key))
 }
 
 fn usage_cached_prompt_tokens(usage: &Value) -> Option<usize> {
